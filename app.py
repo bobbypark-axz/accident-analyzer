@@ -658,7 +658,7 @@ def run_unified_analysis(frame, yolo_result, user_description=""):
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{
@@ -911,7 +911,7 @@ def run_ai_verification(frame, yolo_result):
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=2048,
             messages=[{
                 "role": "user",
@@ -997,7 +997,7 @@ def run_fault_analysis(ai_response):
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=4096,
             system=FAULT_SYSTEM_PROMPT,
             messages=[{
@@ -1207,7 +1207,7 @@ def analyze():
     try:
         client = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model="claude-haiku-4-5-20251001",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{

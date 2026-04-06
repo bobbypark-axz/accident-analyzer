@@ -1,17 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { Langfuse } from 'langfuse';
 
-let langfuse: Langfuse | null = null;
-function getLangfuse(): Langfuse | null {
-  if (langfuse) return langfuse;
-  const secretKey = process.env.LANGFUSE_SECRET_KEY;
-  const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
-  const baseUrl = process.env.LANGFUSE_BASE_URL || 'https://us.cloud.langfuse.com';
-  if (!secretKey || !publicKey) return null;
-  langfuse = new Langfuse({ secretKey, publicKey, baseUrl });
-  return langfuse;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -39,8 +28,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const userInput = userMsgs.map((m: any) => m.content).join('\n');
     const maxTokens = max_completion_tokens || 4096;
 
-    // Langfuse 추적 시작
-    const lf = getLangfuse();
+    // Langfuse — 매 요청마다 새 인스턴스
+    let lf: Langfuse | null = null;
+    const lfSecret = process.env.LANGFUSE_SECRET_KEY;
+    const lfPublic = process.env.LANGFUSE_PUBLIC_KEY;
+    const lfBase = (process.env.LANGFUSE_BASE_URL || 'https://us.cloud.langfuse.com').trim();
+    if (lfSecret && lfPublic) {
+      lf = new Langfuse({ secretKey: lfSecret.trim(), publicKey: lfPublic.trim(), baseUrl: lfBase });
+    }
+
     const trace = lf?.trace({
       name: 'accident-analysis',
       input: { userInput: userInput.substring(0, 500) },
@@ -55,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: maxTokens,
         system: systemMsg,
         messages: userMsgs.map((m: any) => ({ role: m.role, content: m.content })),
@@ -65,8 +61,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       const errorMsg = err.error?.message || 'API 호출 실패';
-      trace?.update({ output: { error: errorMsg }, level: 'ERROR' });
-      await lf?.shutdownAsync();
+      trace?.update({ output: { error: errorMsg }, metadata: { level: 'ERROR' } });
+      if (lf) await lf.shutdownAsync().catch(() => {});
       return res.status(response.status).json({ error: errorMsg });
     }
 
@@ -75,13 +71,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const duration = Date.now() - startTime;
 
     // Langfuse 로깅
-    if (trace) {
+    if (trace && lf) {
       trace.generation({
-        name: 'claude-sonnet-4-6',
-        model: 'claude-sonnet-4-6',
+        name: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5-20251001',
         modelParameters: { max_tokens: maxTokens },
-        input: { system: systemMsg.substring(0, 200), user: userInput.substring(0, 500) },
-        output: outputText.substring(0, 1000),
+        input: { system: systemMsg, user: userInput },
+        output: outputText,
         usage: {
           input: data.usage?.input_tokens,
           output: data.usage?.output_tokens,
@@ -89,12 +85,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         metadata: { durationMs: duration },
       });
       trace.update({
-        output: { text: outputText.substring(0, 500) },
+        output: { text: outputText },
         metadata: { durationMs: duration, inputTokens: data.usage?.input_tokens, outputTokens: data.usage?.output_tokens },
       });
     }
-    // 비동기로 flush (응답 지연 방지)
-    lf?.shutdownAsync().catch(() => {});
+
+    // 응답 전에 Langfuse flush 완료
+    if (lf) {
+      await lf.flushAsync().catch(() => {});
+    }
 
     return res.status(200).json({
       choices: [{ message: { content: outputText } }],
