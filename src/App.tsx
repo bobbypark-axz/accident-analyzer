@@ -26,6 +26,16 @@ interface AnalysisData {
   needed: string[];
 }
 
+interface FrameData {
+  resultImage: string;
+  time: number;
+  vehicleCount: number;
+  personCount: number;
+  collisionCount: number;
+  laneCount: number;
+  rolloverCount: number;
+}
+
 interface PredictionResult {
   output?: string;              // 원본 텍스트 (fallback)
   analysis?: AnalysisData;      // 구조화된 분석 결과
@@ -36,6 +46,8 @@ interface PredictionResult {
   collisionCount?: number;
   laneCount?: number;
   keyFrameTime?: number;
+  frames?: FrameData[];
+  keyFrameIndex?: number;
 }
 
 const FLASK_API = import.meta.env.VITE_FLASK_API || 'http://localhost:5000';
@@ -149,6 +161,7 @@ export function App() {
   const [structuredData, setStructuredData] = useState<Record<string, string> | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
+  const [frameIdx, setFrameIdx] = useState(0);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
@@ -325,8 +338,7 @@ export function App() {
         const d = await r.json();
         if (d.error) throw new Error(d.error);
 
-        setPrediction({
-          output: d.scenario,
+        const videoResult = {
           resultImage: d.result_image ? `data:image/jpeg;base64,${d.result_image}` : undefined,
           thumbnail: d.thumbnail ? `data:image/jpeg;base64,${d.thumbnail}` : undefined,
           vehicleCount: d.vehicle_count || 0,
@@ -334,8 +346,40 @@ export function App() {
           collisionCount: d.collision_count || 0,
           laneCount: d.lane_count || 0,
           keyFrameTime: d.key_frame_time,
-        });
-        // AI에게 분석 결과 기반 재현도 요청
+          frames: d.frames?.map((f: any) => ({
+            resultImage: f.result_image ? `data:image/jpeg;base64,${f.result_image}` : '',
+            time: f.time ?? 0,
+            vehicleCount: f.vehicle_count || 0,
+            personCount: f.person_count || 0,
+            collisionCount: f.collision_count || 0,
+            laneCount: f.lane_count || 0,
+            rolloverCount: f.rollover_count || 0,
+          })) as FrameData[] | undefined,
+          keyFrameIndex: d.key_frame_index ?? 0,
+        };
+
+        // Flask에서 이미 JSON 형식으로 분석 결과를 받음 (Claude 2차 호출 불필요)
+        const scenario = d.scenario || '';
+        let videoAnalysis: AnalysisData | undefined;
+        try {
+          const startIdx = scenario.indexOf('{');
+          if (startIdx !== -1) {
+            let depth = 0;
+            let endIdx = startIdx;
+            for (let i = startIdx; i < scenario.length; i++) {
+              if (scenario[i] === '{') depth++;
+              else if (scenario[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+            }
+            const parsed = JSON.parse(scenario.slice(startIdx, endIdx + 1));
+            if (parsed.summary && parsed.ratio) {
+              if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
+              if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
+              videoAnalysis = parsed;
+            }
+          }
+        } catch (e) { console.warn('영상 분석 JSON 파싱 실패:', e); }
+
+        setPrediction({ output: scenario, analysis: videoAnalysis, ...videoResult });
         return;
       }
 
@@ -388,9 +432,14 @@ export function App() {
       // JSON 파싱 시도
       let analysis: AnalysisData | undefined;
       try {
-        const jsonMatch = generatedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
+        const si = generatedText.indexOf('{');
+        if (si !== -1) {
+          let d = 0, ei = si;
+          for (let i = si; i < generatedText.length; i++) {
+            if (generatedText[i] === '{') d++;
+            else if (generatedText[i] === '}') { d--; if (d === 0) { ei = i; break; } }
+          }
+          const parsed = JSON.parse(generatedText.slice(si, ei + 1));
           if (parsed.summary && parsed.ratio) {
             // percent를 숫자로 보장
             if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
@@ -515,7 +564,7 @@ export function App() {
     return result;
   }, [a]);
 
-  useEffect(() => { setCarouselIndex(0); }, [prediction?.analysis]);
+  useEffect(() => { setCarouselIndex(0); setFrameIdx(prediction?.keyFrameIndex ?? 0); }, [prediction?.analysis]);
 
   const goToSlide = (idx: number) => {
     setCarouselIndex(Math.max(0, Math.min(idx, sections.length - 1)));
@@ -715,8 +764,75 @@ export function App() {
 
               {/* 0. 사고 시각화 */}
               <section className="mb-3">
-                {/* 영상 분석 시 실제 프레임 */}
-                {(prediction.thumbnail || prediction.resultImage) && (
+                {/* 프레임 슬라이드쇼 (영상 분석) */}
+                {prediction.frames && prediction.frames.length > 0 ? (
+                  <div className="mb-2">
+                    {/* 메인 프레임 뷰 */}
+                    <div className="rounded-2xl overflow-hidden cursor-pointer relative"
+                      onClick={() => setShowImageModal(prediction.frames![frameIdx].resultImage)}>
+                      <img src={prediction.frames![frameIdx].resultImage} alt={`프레임 ${frameIdx}`} className="w-full aspect-video object-cover" />
+                      <div className="absolute inset-0" style={{ background: 'linear-gradient(transparent 40%, rgba(0,0,0,0.7))' }} />
+                      {/* 프레임 정보 오버레이 */}
+                      <div className="absolute bottom-0 left-0 right-0 p-4">
+                        <div className="flex items-end justify-between">
+                          <div>
+                            {frameIdx === (prediction.keyFrameIndex ?? 0) && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-red-500/80 text-white mb-1 mr-1">
+                                <Icon name="warning" className="text-[10px]" filled />사고 순간
+                              </span>
+                            )}
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white/20 text-white/90 mb-1">
+                              <Icon name="videocam" className="text-[10px]" filled />{prediction.frames![frameIdx].time}초
+                            </span>
+                            <div className="flex gap-2 mt-1.5">
+                              {prediction.frames![frameIdx].vehicleCount > 0 && (
+                                <span className="text-[11px] text-white/80 flex items-center gap-0.5">
+                                  <Icon name="directions_car" className="text-[11px]" />{prediction.frames![frameIdx].vehicleCount}
+                                </span>
+                              )}
+                              {prediction.frames![frameIdx].personCount > 0 && (
+                                <span className="text-[11px] text-white/80 flex items-center gap-0.5">
+                                  <Icon name="person" className="text-[11px]" />{prediction.frames![frameIdx].personCount}
+                                </span>
+                              )}
+                              {prediction.frames![frameIdx].collisionCount > 0 && (
+                                <span className="text-[11px] text-white/80 flex items-center gap-0.5 text-red-300">
+                                  <Icon name="car_crash" className="text-[11px]" />{prediction.frames![frameIdx].collisionCount}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-[12px] font-semibold text-white/60">{frameIdx + 1} / {prediction.frames!.length}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 프레임 썸네일 스크롤 */}
+                    {prediction.frames!.length > 1 && (
+                      <div className="flex gap-1.5 mt-2 overflow-x-auto pb-1 px-0.5" style={{ scrollbarWidth: 'none' }}>
+                        {prediction.frames!.map((f, i) => (
+                          <button key={i} onClick={() => setFrameIdx(i)}
+                            className="flex-shrink-0 rounded-lg overflow-hidden relative transition-all"
+                            style={{
+                              width: 64, height: 40, border: i === frameIdx ? '2px solid #3182F6' : '2px solid transparent',
+                              opacity: i === frameIdx ? 1 : 0.6, cursor: 'pointer', padding: 0, background: 'none',
+                            }}>
+                            <img src={f.resultImage} alt="" className="w-full h-full object-cover" />
+                            {i === (prediction.keyFrameIndex ?? 0) && (
+                              <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(239,68,68,0.3)' }}>
+                                <Icon name="warning" className="text-[10px] text-white" filled />
+                              </div>
+                            )}
+                            {f.collisionCount > 0 && i !== (prediction.keyFrameIndex ?? 0) && (
+                              <div className="absolute top-0 right-0 w-2 h-2 rounded-full bg-red-400 m-0.5" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (prediction.thumbnail || prediction.resultImage) ? (
+                  /* 기존 단일 이미지 표시 (fallback) */
                   <div className="rounded-2xl overflow-hidden cursor-pointer relative mb-2"
                     onClick={() => setShowImageModal((prediction.thumbnail || prediction.resultImage)!)}>
                     <img src={(prediction.thumbnail || prediction.resultImage)!} alt="사고 순간" className="w-full aspect-video object-cover" />
@@ -738,7 +854,7 @@ export function App() {
                       )}
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {/* 손보협 사고 재현 영상 + 도표 */}
                 {a?.chartCode && (() => {

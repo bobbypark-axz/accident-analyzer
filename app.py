@@ -63,13 +63,12 @@ next_track_id = 0
 def get_model():
     global model
     if model is None:
-        print("YOLOv8s 모델 로딩 중...")
-        # yolov8s: yolov8n보다 정확도 높음 (자동 다운로드)
-        local_model = Path(__file__).parent / "yolov8s.pt"
+        print("YOLOv8n 모델 로딩 중...")
+        local_model = Path(__file__).parent / "yolov8n.pt"
         if local_model.exists():
             model = YOLO(str(local_model))
         else:
-            model = YOLO("yolov8s.pt")
+            model = YOLO("yolov8n.pt")
     return model
 
 
@@ -547,80 +546,72 @@ def build_scene_data(frame, detections, collisions):
 # ═══════════════════════════════════════
 # AI 통합 분석
 # ═══════════════════════════════════════
-SYSTEM_PROMPT = """당신은 **교통사고 분석 전문가이자 법률 해설가**입니다.
+SYSTEM_PROMPT = """당신은 교통사고 분석 전문가이자 법률 해설가입니다.
+사용자의 사고 상황을 분석하여 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
 
-사용자의 사고 상황 설명(텍스트)과, 경우에 따라 블랙박스/CCTV 이미지 및 AI 객체감지 결과가 함께 주어집니다.
-주어진 모든 정보를 종합하여 **정밀한 과실비율 분석**을 제공하세요.
+{
+  "summary": "사고 개요를 2~4문장으로 명료하게 정리.",
+  "chartCode": "가장 유사한 손보협 도표번호 (아래 목록에서 선택)",
+  "chartName": "해당 도표의 사고 유형명",
+  "ratio": {
+    "a": { "label": "A의 정의", "percent": 70 },
+    "b": { "label": "B의 정의", "percent": 30 },
+    "reason": "이 비율의 핵심 근거 2~3문장"
+  },
+  "laws": [
+    { "name": "도로교통법 제XX조(조항명)", "content": "조문 요약", "relevance": "관련성", "effect": "법적 효과" }
+  ],
+  "cases": [
+    { "title": "사례 제목", "facts": "사실관계", "ruling": "과실비율", "reason": "판단 근거" }
+  ],
+  "notes": ["참고사항"],
+  "needed": ["필요한 정보"]
+}
 
-## 핵심 원칙
+## 손보협 도표번호 목록 (chartCode에 사용)
+- 차1-1: 신호 교차로 직진 vs 직진 (쌍방 신호)
+- 차1-2: 신호 교차로 직진 vs 직진 (일방 신호위반)
+- 차2-1: 신호 교차로 직진 vs 우회전
+- 차2-2: 신호 교차로 우회전 vs 직진
+- 차3-1: 신호 교차로 직진 vs 좌회전 (좌회전 신호)
+- 차3-2: 신호 교차로 직진 vs 좌회전 (비보호)
+- 차4-1: 신호 교차로 좌회전 vs 좌회전
+- 차4-2: 신호 교차로 좌회전 vs 유턴
+- 차5-1: 교차로 우회전 vs 직진 (보행자 포함)
+- 차10-1: 비신호 교차로 직진 vs 직진
+- 차11-1: 비신호 교차로 직진 vs 우회전
+- 차11-2: 비신호 교차로 우회전 vs 직진
+- 차12-1: 비신호 교차로 직진 vs 좌회전 (A좌회전)
+- 차13-1: 비신호 교차로 직진 vs 좌회전 (B좌회전)
+- 차14-1: 비신호 교차로 우회전 vs 직진
+- 차15-1: T자 교차로 직진 vs 진입
+- 차16-1: 교차로 직진 vs 좌회전 (비보호)
+- 차16-2: 교차로 직진 vs 좌회전 (좌회전 신호)
+- 차17-1: 교차로 유턴 vs 직진
+- 차20-1: 대향 직진 vs 중앙선 침범
+- 차21-1: 동일 방향 차선변경 (동일 차선 내)
+- 차31-1: 교행 중 충돌
+- 차31-2: 교행 중 충돌 (좁은 도로)
+- 차41-1: 직선도로 추돌 (후방 추돌)
+- 차42-1: 주정차 차량 추돌
+- 차42-2: 갓길 주정차 추돌
+- 차42-3: 주정차 후 문 열기
+- 차43-1: 동일 방향 진행 중 차선변경 충돌
+- 차43-2: 후행 직진 vs 선행 진로변경
+- 차43-3: 동시 차선변경
+- 차43-4: 끼어들기
+- 차44-1: 고속도로 추돌
+- 차51-1: 주차장 통로 vs 출차
+- 차51-2: 주차장 내 후진 충돌
 
-### 절대 원칙
-- **모든 답변은 실제 도로교통법과 판례를 기반으로 제공해야 합니다**
-- 법령 내용은 반드시 조문 명칭 및 번호, 실제 조문 요약, 그리고 사고와의 관련성 설명을 포함해야 합니다
-- 허위 또는 생성된 법 조항을 제공하지 말고, 조문 출처를 명확히 밝혀야 합니다
-- 사고 설명이 불완전하더라도 **가능한 범위 내에서 분석을 먼저 시도**하세요. 답변을 거부하거나 중단하지 마세요.
-- 이미지가 주어진 경우, 이미지에서 관찰한 내용도 분석에 포함하세요.
-
-## 답변 형식
-
-아래 형식을 **정확히** 따라 작성하세요:
-
-## 1. 📝 사고 요약
-
-- 사고 개요를 명료하게 불릿 포인트로 정리
-- 도로 유형, 신호 여부, 진행 방향, 충돌 형태 등 포함
-- 이미지가 있다면 이미지에서 관찰한 내용도 포함
-
-## 2. ⚖️ 예상 과실 판단 요약
-
-- **A(본인 차량) : B(상대 차량) = XX:XX** 형식으로 반드시 명시
-- A와 B가 누구인지 명확히 정의 (예: A = 직진 차량, B = 좌회전 차량)
-- 과실 범위가 있다면 범위도 함께 제시 (예: 20:80 ~ 0:100)
-- 왜 이 비율인지 핵심 근거를 2~3문장으로 설명
-
-## 3. 📚 적용된 법규
-
-2~5개의 관련 법규를 아래 형식으로:
-
-### 1) **도로교통법 제XX조(조항명)**
-- **조문 요약:** 실제 조문 내용을 상세하게 요약
-- **사고와의 관련성:** 이 사고에서 왜 이 조항이 적용되는지 구체적으로 설명
-- **법적 효과:** 이 조항 위반 시 과실비율에 미치는 영향
-
-(각 법규마다 동일 형식 반복)
-
-## 4. 🔍 참고된 유사 판례
-
-### 유사 사례 1: **사례 제목**
-- **사실관계:** 사고 상황 요약
-- **판단 경향:** 인정된 과실비율
-- **이유:** 판단 근거
-
-(1~3개 판례)
-
-## 5. 📌 참고 및 주의사항
-
-- 판단의 핵심 요지
-- 일반적인 주의사항
-
-## 6. ⚠️ 추가 분석을 위해 필요한 정보
-
-정확한 과실비율을 산정하려면 아래 정보가 필요합니다:
-1. ...
-2. ...
-
----
-
-원하시면 다음처럼 추가로 알려주세요:
-- "나는 직진 중이었고 상대가 옆차선에서 들어와 박음"
-- "교차로에서 상대가 회전하다 옆을 박음"
-
-## 응답 스타일
-
-- 변호사이자 사고 분석 전문가의 어투로, **정중하고 논리적이며 상세한 설명**을 제공하세요
-- 각 항목을 충분히 상세하게 설명하고, 단순 요약이 아닌 구체적 근거와 이유를 제시하세요
-- "일반적으로는", "통상적으로는", "대법원 판례에 따르면"과 같은 표현을 사용하세요
-- 정보가 부족해도 가능한 시나리오별로 분석 후, 마지막에 추가 정보를 요청하세요"""
+규칙:
+- chartCode는 반드시 위 목록에서 가장 유사한 것을 선택. 정확히 일치하지 않아도 가장 가까운 것 선택.
+- 모든 답변은 실제 도로교통법과 판례 기반. 허위 조항 금지.
+- laws는 2~5개, cases는 1~3개.
+- 정보가 부족해도 가능한 범위에서 분석 먼저 시도.
+- ratio.a.percent + ratio.b.percent = 100.
+- 이미지가 주어진 경우 이미지에서 관찰한 내용도 분석에 포함.
+- 한국어. 정중하고 논리적인 전문가 어투."""
 
 
 def run_unified_analysis(frame, yolo_result, user_description=""):
@@ -1071,6 +1062,15 @@ def analyze():
 
             thumbnail_b64 = frame_to_base64_jpg(frame)
             scene = build_scene_data(frame, yolo_result["detections"], yolo_result["collisions"])
+            single_frame = {
+                "result_image": yolo_result["result_image"],
+                "time": 0,
+                "vehicle_count": yolo_result.get("vehicle_count", 0),
+                "person_count": yolo_result.get("person_count", 0),
+                "collision_count": yolo_result.get("collision_count", 0),
+                "lane_count": yolo_result.get("lane_count", 0),
+                "rollover_count": 0,
+            }
             return jsonify({
                 "mode": "detailed",
                 "result_image": yolo_result["result_image"],
@@ -1081,6 +1081,8 @@ def analyze():
                 "collision_count": yolo_result.get("collision_count", 0),
                 "lane_count": yolo_result.get("lane_count", 0),
                 "scenario": ai_scenario,
+                "frames": [single_frame],
+                "key_frame_index": 0,
             })
 
         # ── 영상: 1초 간격 샘플링 → 핵심 프레임 AI 분석 ──
@@ -1095,7 +1097,7 @@ def analyze():
 
         fps = int(cap.get(cv2.CAP_PROP_FPS)) or 30
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        sample_interval = max(1, fps)  # 1초 간격
+        sample_interval = max(1, fps * 2)  # 2초 간격
 
         # 1) 전체 샘플 프레임 YOLO 분석
         frames_data = []
@@ -1165,6 +1167,19 @@ def analyze():
         # 3) 핵심 프레임으로 AI 종합 분석
         ai_scenario = run_unified_analysis(best_frame, best_result, user_description)
 
+        # 4) 모든 프레임 데이터 구성 (슬라이드쇼용, 최대 20프레임)
+        all_frames = []
+        for i, f in enumerate(frames_data[:20]):
+            all_frames.append({
+                "result_image": f["result_image"],
+                "time": f["time"],
+                "vehicle_count": f.get("vehicle_count", 0),
+                "person_count": f.get("person_count", 0),
+                "collision_count": f.get("collision_count", 0),
+                "lane_count": f.get("lane_count", 0),
+                "rollover_count": f.get("rollover_count", 0),
+            })
+
         return jsonify({
             "mode": "detailed",
             "result_image": best_result["result_image"],
@@ -1177,7 +1192,9 @@ def analyze():
             "duration": round(total_frames / fps, 1),
             "analyzed_frames": len(frames_data),
             "key_frame_time": best_result["time"],
+            "key_frame_index": min(key_idx, 19),
             "scenario": ai_scenario,
+            "frames": all_frames,
         })
 
     # ── 기본 모드: 텍스트만 + AI ──
@@ -1213,4 +1230,5 @@ def health():
 
 if __name__ == "__main__":
     get_model()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host="0.0.0.0", port=port)
