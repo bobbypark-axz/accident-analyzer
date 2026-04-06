@@ -1,0 +1,199 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 기본 스타일 */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Material Symbols */
+.material-symbols-rounded {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  user-select: none;
+}
+
+.icon-filled {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* 페이드인 애니메이션 */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes progressPulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 프로그레스 바 */
+.progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6, #3b82f6);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* FAQ 아코디언 트랜지션 */
+.faq-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s ease-out;
+}
+
+.faq-content.open {
+  grid-template-rows: 1fr;
+}
+
+.faq-content > div {
+  overflow: hidden;
+}
+
+/* 모달 배경 블러 */
+.modal-backdrop {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* 텍스트에어리어 포커스 스타일 */
+textarea:focus {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* 카드 호버 효과 */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* 결과 마크다운 스타일 개선 */
+.result-prose h2 {
+  @apply text-lg font-bold mt-6 mb-3 pb-2;
+  color: #191F28;
+  border-bottom: 1px solid #F2F4F6;
+}
+
+.result-prose h3 {
+  @apply text-base font-semibold mt-4 mb-2;
+  color: #333D4B;
+}
+
+.result-prose ul {
+  @apply space-y-1.5;
+}
+
+.result-prose li {
+  color: #4E5968;
+  line-height: 1.7;
+}
+
+.result-prose strong {
+  color: #191F28;
+  background: linear-gradient(transparent 60%, #DBEAFE 60%);
+  padding: 0 2px;
+  font-weight: 700;
+}
+
+.result-prose p {
+  color: #4E5968;
+  line-height: 1.8;
+}
+
+.result-prose blockquote {
+  border-left: 3px solid #3182F6;
+  background: #F8FAFC;
+  padding: 12px 16px;
+  margin: 12px 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.result-prose blockquote p {
+  color: #333D4B;
+  font-size: 14px;
+}
+
+.result-prose table {
+  @apply w-full text-sm my-4;
+  border-collapse: collapse;
+}
+
+.result-prose thead {
+  background: #F8FAFC;
+}
+
+.result-prose th {
+  @apply px-4 py-2.5 text-left font-semibold;
+  color: #191F28;
+  border-bottom: 2px solid #E5E8EB;
+}
+
+.result-prose td {
+  @apply px-4 py-2.5;
+  color: #4E5968;
+  border-bottom: 1px solid #F2F4F6;
+}
+
+.result-prose tbody tr:hover {
+  background: #F9FAFB;
+}
+
+.result-prose hr {
+  @apply my-5;
+  border-color: #F2F4F6;
+}
+
+/* 스크롤바 스타일링 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
