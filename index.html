@@ -3,26 +3,79 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>교통사고 과실비율 예측 | AI 기반 분석</title>
-    <meta name="description" content="AI 기술을 활용한 교통사고 과실비율 예측 서비스. 사고 상황을 입력하면 즉시 예상 과실비율을 분석해드립니다." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>교통사고 과실비율 AI 분석 - 무료 즉시 예측 | WhoseFault</title>
+    <meta name="description" content="AI가 교통사고 과실비율을 즉시 분석합니다. 사고 상황을 입력하거나 블랙박스 영상을 업로드하면 도로교통법과 판례 기반으로 예상 과실비율, 적용 법규, 유사 판례를 무료로 제공합니다. 회원가입 없이 바로 이용 가능." />
     <meta name="keywords" content="교통사고,과실비율,AI예측,교통사고분석,과실비율계산,교통사고과실,교통사고처리,보험,자동차보험" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://whosefault-ai.vercel.app/" />
+
+    <!-- 구조화 데이터 (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "교통사고 과실비율 예측",
+      "description": "AI 기술을 활용한 교통사고 과실비율 예측 서비스. 사고 상황을 입력하면 즉시 예상 과실비율을 분석해드립니다.",
+      "url": "https://whosefault-ai.vercel.app",
+      "applicationCategory": "UtilityApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "KRW"
+      },
+      "inLanguage": "ko"
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "AI 과실비율 분석은 정확한가요?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "AI 분석은 도로교통법과 손해보험협회 과실비율 인정기준을 참고하여 예측하지만, 법적 구속력은 없으며 참고용으로만 사용해야 합니다."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "블랙박스 영상도 분석할 수 있나요?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "네, 블랙박스 영상을 업로드하면 AI가 차량, 신호등, 충돌 순간을 자동 감지하여 더 정밀한 분석을 제공합니다."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "개인정보가 수집되나요?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "회원가입이 필요 없으며, 업로드된 영상과 분석 결과는 서버에 저장되지 않습니다."
+          }
+        }
+      ]
+    }
+    </script>
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="교통사고 과실비율 예측 | AI 기반 분석" />
-    <meta property="og:description" content="AI 기술을 활용한 교통사고 과실비율 예측 서비스. 사고 상황을 입력하면 즉시 예상 과실비율을 분석해드립니다." />
-    <meta property="og:image" content="https://accident-analyzer-five.vercel.app/og-image.png?v=2" />
+    <meta property="og:title" content="교통사고 과실비율 AI 분석 - 무료 즉시 예측" />
+    <meta property="og:description" content="AI가 교통사고 과실비율을 즉시 분석합니다. 블랙박스 영상 업로드 또는 사고 상황 입력으로 도로교통법 기반 과실비율, 법규, 판례를 무료 제공." />
+    <meta property="og:image" content="https://whosefault-ai.vercel.app/og-image.png?v=2" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:url" content="https://accident-analyzer-five.vercel.app" />
+    <meta property="og:url" content="https://whosefault-ai.vercel.app" />
     <meta property="og:locale" content="ko_KR" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="교통사고 과실비율 예측 | AI 기반 분석" />
-    <meta name="twitter:description" content="AI 기술을 활용한 교통사고 과실비율 예측 서비스" />
-    <meta name="twitter:image" content="https://accident-analyzer-five.vercel.app/og-image.png?v=2" />
+    <meta name="twitter:title" content="교통사고 과실비율 AI 분석 - 무료 즉시 예측" />
+    <meta name="twitter:description" content="AI가 교통사고 과실비율을 즉시 분석합니다. 블랙박스 영상 업로드 또는 사고 상황 입력으로 무료 분석." />
+    <meta name="twitter:image" content="https://whosefault-ai.vercel.app/og-image.png?v=2" />
 
     <!-- Google Analytics -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-YQQRHKRKH9"></script>
@@ -40,7 +93,8 @@
     <meta name="theme-color" content="#3B82F6">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"></noscript>
     <style>
       .material-symbols-rounded { visibility: hidden; }
     </style>
@@ -57,6 +111,32 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- 크롤러용 정적 콘텐츠 (React 렌더링 후 대체됨) -->
+    <noscript>
+      <div style="max-width:672px;margin:0 auto;padding:20px;font-family:system-ui,-apple-system,sans-serif">
+        <h1>교통사고 과실비율 AI 분석 서비스</h1>
+        <p>AI 기술을 활용하여 교통사고 과실비율을 즉시 예측하는 무료 서비스입니다. 사고 상황을 텍스트로 입력하거나 블랙박스 영상을 업로드하면 도로교통법과 손해보험협회 과실비율 인정기준에 기반하여 예상 과실비율을 분석합니다.</p>
+        <h2>주요 기능</h2>
+        <ul>
+          <li>AI 과실비율 예측 - 사고 상황 입력만으로 즉시 분석</li>
+          <li>블랙박스 영상 분석 - 차량, 신호등, 충돌 순간 자동 감지</li>
+          <li>법규 및 판례 제시 - 도로교통법 관련 조항과 유사 판례 안내</li>
+          <li>2D 사고 재현 - 사고 상황을 시각적으로 재현</li>
+          <li>커뮤니티 - 다른 사용자의 분석 결과 확인 및 공유</li>
+        </ul>
+        <h2>이런 분들에게 추천합니다</h2>
+        <p>교통사고 당사자, 보험 합의 전 과실비율 확인이 필요한 분, 다양한 사고 유형의 과실 기준을 알고 싶은 운전자에게 유용합니다.</p>
+        <h2>자주 묻는 질문</h2>
+        <h3>AI 과실비율 분석은 정확한가요?</h3>
+        <p>AI 분석은 도로교통법과 손해보험협회 과실비율 인정기준을 참고하여 예측하지만, 법적 구속력은 없으며 참고용으로만 사용해야 합니다.</p>
+        <h3>블랙박스 영상도 분석할 수 있나요?</h3>
+        <p>네, 블랙박스 영상을 업로드하면 AI가 차량, 신호등, 충돌 순간을 자동 감지하여 더 정밀한 분석을 제공합니다.</p>
+        <h3>개인정보가 수집되나요?</h3>
+        <p>회원가입이 필요 없으며, 업로드된 영상과 분석 결과는 서버에 저장되지 않습니다.</p>
+        <h3>무료인가요?</h3>
+        <p>네, 완전 무료 서비스입니다. 회원가입 없이 바로 이용할 수 있습니다.</p>
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
