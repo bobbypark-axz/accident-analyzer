@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchPosts, timeAgo, type CommunityPost } from '../lib/community';
 import CommunityDetail from './CommunityDetail';
+import { trackEvent } from '../lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
@@ -67,7 +68,7 @@ export default function CommunityPage() {
               {posts.map(post => (
                 <button
                   key={post.id}
-                  onClick={() => setSelectedPost(post)}
+                  onClick={() => { trackEvent('community_post_click', { post_id: post.id }); setSelectedPost(post); }}
                   className="w-full text-left bg-white rounded-2xl overflow-hidden active:scale-[0.98] transition-all"
                   style={{ border: 'none', cursor: 'pointer', padding: 0 }}
                 >

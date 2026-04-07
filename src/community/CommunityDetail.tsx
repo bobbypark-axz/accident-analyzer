@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment } from '../lib/community';
+import { trackEvent } from '../lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
@@ -24,6 +25,7 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
     setSubmitting(true);
     const comment = await createComment(post.id, text);
     if (comment) {
+      trackEvent('comment_submit', { post_id: post.id });
       setComments(prev => [...prev, comment]);
       setCommentText('');
     }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { createPost, getNickname } from '../lib/community';
+import { trackEvent } from '../lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
@@ -26,6 +27,7 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
     });
     setSharing(false);
     if (post) {
+      trackEvent('community_share_complete', { post_id: post.id });
       setDone(true);
       setTimeout(() => { onSuccess(); }, 1500);
     } else {

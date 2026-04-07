@@ -7,6 +7,7 @@ import { generateEmbedding } from './lib/embeddings';
 import AccidentWizard from './AccidentWizard';
 import { searchDocuments } from './lib/supabase';
 import ShareModal from './community/ShareModal';
+import { trackEvent } from './lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
   return (
@@ -196,6 +197,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
   }, [prediction]);
 
   const handleSaveImage = useCallback(async () => {
+    trackEvent('save_image');
     if (!resultRef.current) return;
     try {
       const canvas = await html2canvas(resultRef.current, { backgroundColor: '#fff', scale: 2, useCORS: true, logging: false });
@@ -235,6 +237,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
 
   // 결과 공유 (URL 기반)
   const handleShare = useCallback(async () => {
+    trackEvent('share_link');
     const analysis = prediction?.analysis;
     if (!analysis) return;
 
@@ -321,6 +324,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
   };
 
   const handlePredict = async () => {
+    trackEvent('analyze_start', { mode: useDetailedAnalysis ? 'video' : 'text', input_mode: inputMode });
     // 영상 20초 제한 재확인
     if (useDetailedAnalysis && selectedFile?.type.startsWith('video/') && videoDuration && videoDuration > 40) {
       setFileError(`영상이 ${videoDuration}초입니다. 40초 이하만 분석 가능합니다.`);
@@ -465,9 +469,10 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
       } catch (e) { console.warn('JSON 파싱 실패:', e, generatedText.substring(0, 200)); }
 
       setPrediction({ output: generatedText, analysis });
-
+      trackEvent('analyze_complete', { ratio_a: analysis?.ratio?.a?.percent, ratio_b: analysis?.ratio?.b?.percent, chart_code: analysis?.chartCode });
 
     } catch (err) {
+      trackEvent('analyze_error', { error: err instanceof Error ? err.message : 'unknown' });
       setError(err instanceof Error ? err.message : '예측 중 오류가 발생했습니다.');
     } finally {
       setIsLoading(false);
@@ -617,7 +622,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
               type="button"
               className="w-full flex items-center justify-between px-5 py-4"
               style={{ background: 'white', border: 'none', cursor: isLoading ? 'not-allowed' : 'pointer' }}
-              onClick={() => !isLoading && setUseDetailedAnalysis(!useDetailedAnalysis)}
+              onClick={() => { if (!isLoading) { trackEvent('toggle_analysis_mode', { mode: !useDetailedAnalysis ? 'video' : 'text' }); setUseDetailedAnalysis(!useDetailedAnalysis); } }}
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: '#EEF4FF' }}>
@@ -725,7 +730,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                 {!accidentDetails && (
                   <div className="flex gap-2 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                     {accidentTemplates.map((t, i) => (
-                      <button key={i} type="button" onClick={() => setAccidentDetails(t.text)}
+                      <button key={i} type="button" onClick={() => { trackEvent('select_template', { template: t.label }); setAccidentDetails(t.text); }}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-lg whitespace-nowrap active:scale-[0.96] transition-all"
                         style={{ background: '#F2F4F6', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                         <Icon name={t.icon} className="text-[16px]" style={{ color: '#6B7684' }} />
@@ -749,6 +754,12 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     <span className="text-xs" style={{ color: '#ADB5BD' }}>{accidentDetails.length}자</span>
                   </div>
                 )}
+                {/* 분석 버튼 (인라인) */}
+                <button onClick={handlePredict} disabled={!canSubmit || isLoading}
+                  className="w-full flex items-center justify-center gap-2 mt-3 active:scale-[0.98] transition-all"
+                  style={{ padding: 15, borderRadius: 14, border: 'none', background: !canSubmit || isLoading ? '#E5E8EB' : '#3182F6', color: !canSubmit || isLoading ? '#ADB5BD' : '#fff', fontSize: 16, fontWeight: 700, cursor: !canSubmit || isLoading ? 'not-allowed' : 'pointer' }}>
+                  {isLoading ? '분석 중...' : <><Icon name="auto_awesome" className="text-lg" filled />분석하기</>}
+                </button>
               </section>
             )
           )}
@@ -1059,7 +1070,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     <Icon name={copied ? 'check' : 'link'} className="text-[16px]" style={{ color: copied ? '#fff' : '#4E5968' }} />
                     <span className="text-[13px] font-bold" style={{ color: copied ? '#fff' : '#4E5968' }}>{copied ? '복사됨' : '링크 복사'}</span>
                   </button>
-                  <button onClick={() => setShowShareModal(true)}
+                  <button onClick={() => { trackEvent('open_share_modal'); setShowShareModal(true); }}
                     className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.97] transition-all"
                     style={{ background: '#3182F6', border: 'none', cursor: 'pointer' }}>
                     <Icon name="forum" className="text-[16px]" style={{ color: '#fff' }} />
@@ -1098,7 +1109,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                   {i > 0 && <div style={{ height: 1, background: '#F2F4F6', margin: '0 20px' }} />}
                   <button className="w-full px-5 py-4 text-left flex justify-between items-center"
                     style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                    onClick={() => setOpenFAQ(openFAQ === i ? null : i)}>
+                    onClick={() => { if (openFAQ !== i) trackEvent('faq_open', { question: item.question }); setOpenFAQ(openFAQ === i ? null : i); }}>
                     <span className="text-[15px] font-medium" style={{ color: '#333D4B' }}>{item.question}</span>
                     <Icon name="expand_more" className={`text-xl transition-transform duration-300 flex-shrink-0 ml-3 ${openFAQ === i ? 'rotate-180' : ''}`} style={{ color: '#ADB5BD' }} />
                   </button>
@@ -1117,16 +1128,6 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
         </div>
       </div>
 
-      {/* 하단 CTA — 분석 버튼만 (결과 나오면 숨김) */}
-      {!prediction && !isLoading && inputMode === 'text' && (
-        <div style={{ position: 'fixed', bottom: bottomOffset, left: 0, right: 0, zIndex: 40, padding: '8px 24px 12px', maxWidth: 672, margin: '0 auto', background: 'linear-gradient(transparent, #F4F4F4 16px)' }}>
-          <button onClick={handlePredict} disabled={!canSubmit || isLoading}
-            className="w-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-            style={{ padding: 15, borderRadius: 14, border: 'none', background: !canSubmit || isLoading ? '#E5E8EB' : '#3182F6', color: !canSubmit || isLoading ? '#ADB5BD' : '#fff', fontSize: 16, fontWeight: 700, cursor: !canSubmit || isLoading ? 'not-allowed' : 'pointer' }}>
-            {isLoading ? '분석 중...' : useDetailedAnalysis ? '영상 분석하기' : '과실비율 분석하기'}
-          </button>
-        </div>
-      )}
 
       {/* ══════ 공유 카드 (화면에 안 보임, 이미지 생성용) ══════ */}
       {showShareCard && a?.ratio && (

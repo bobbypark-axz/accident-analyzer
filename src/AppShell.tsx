@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { App } from './App';
 import CommunityPage from './community/CommunityPage';
+import { trackEvent } from './lib/analytics';
 
 export default function AppShell() {
   const [activeTab, setActiveTab] = useState<'analysis' | 'community'>('analysis');
@@ -47,7 +48,7 @@ export default function AppShell() {
             const isActive = activeTab === tab.key;
             return (
               <button key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => { trackEvent('tab_switch', { tab: tab.key }); setActiveTab(tab.key); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '8px 16px',
