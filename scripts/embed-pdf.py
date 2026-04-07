@@ -8,8 +8,8 @@ from supabase import create_client
 import requests
 
 # 환경 설정
-SUPABASE_URL = "https://ejfpxcxzyalnnmoypznm.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVqZnB4Y3h6eWFsbm5tb3lwem5tIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NTQ5NzQyNCwiZXhwIjoyMDkxMDczNDI0fQ.5lRkjHtSoo6gWs_hVfkTkJnKIVc-6nSGcfxhOYC5gk0"
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 # .env에서 OpenAI 키 로드

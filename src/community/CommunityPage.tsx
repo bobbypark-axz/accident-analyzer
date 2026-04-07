@@ -97,7 +97,7 @@ export default function CommunityPage() {
                     {/* 내용 */}
                     <div className="flex-1 p-3.5 min-w-0">
                       <p className="text-[14px] font-semibold mb-1.5 truncate" style={{ color: '#191F28' }}>
-                        {(post as any).title || getShortTitle(post.summary) || '사고 분석'}
+                        {post.title || getShortTitle(post.summary) || '사고 분석'}
                       </p>
                       {/* 과실비율 바 */}
                       <div className="flex items-center gap-2 mb-2">

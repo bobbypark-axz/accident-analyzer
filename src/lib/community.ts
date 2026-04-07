@@ -96,7 +96,6 @@ export async function createPost(data: {
           const uploadResult = await supabase.storage
             .from('community-media')
             .upload(imgFilename, blob, { contentType: 'image/png' });
-          console.log('Storage upload debug:', JSON.stringify(uploadResult));
           const uploadErr = uploadResult.error;
           if (!uploadErr) {
             const { data: urlData } = supabase.storage.from('community-media').getPublicUrl(imgFilename);
