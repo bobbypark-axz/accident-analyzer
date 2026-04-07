@@ -1,0 +1,263 @@
+import { useState, useEffect } from 'react';
+import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment } from '../lib/community';
+
+function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
+  return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
+}
+
+export default function CommunityDetail({ post, onBack }: { post: CommunityPost; onBack: () => void }) {
+  const a = post.analysis;
+  const isOwner = post.session_token === getSessionToken();
+  const sessionToken = getSessionToken();
+
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    fetchComments(post.id).then(setComments);
+  }, [post.id]);
+
+  const handleSubmitComment = async () => {
+    const text = commentText.trim();
+    if (!text || submitting) return;
+    setSubmitting(true);
+    const comment = await createComment(post.id, text);
+    if (comment) {
+      setComments(prev => [...prev, comment]);
+      setCommentText('');
+    }
+    setSubmitting(false);
+  };
+
+  const handleDeleteComment = async (id: string) => {
+    const ok = await deleteComment(id);
+    if (ok) setComments(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('이 게시물을 삭제하시겠습니까?')) return;
+    const ok = await deletePost(post.id);
+    if (ok) onBack();
+    else alert('삭제에 실패했습니다.');
+  };
+
+  return (
+    <div className="min-h-screen pb-24" style={{ background: '#F4F4F4' }}>
+      <div className="container mx-auto px-4 py-6 sm:py-10">
+        <div className="max-w-2xl mx-auto">
+          {/* 헤더 */}
+          <header className="pt-2 pb-4 flex items-center gap-3">
+            <button onClick={onBack}
+              className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-90 transition-all"
+              style={{ background: '#fff', border: 'none', cursor: 'pointer' }}>
+              <Icon name="arrow_back" className="text-[20px]" style={{ color: '#333D4B' }} />
+            </button>
+            <div className="flex-1">
+              <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>분석 결과</p>
+              <p className="text-[11px]" style={{ color: '#ADB5BD' }}>{post.nickname} · {timeAgo(post.created_at)}</p>
+            </div>
+            {isOwner && (
+              <button onClick={handleDelete}
+                className="w-10 h-10 rounded-xl flex items-center justify-center active:scale-90 transition-all"
+                style={{ background: '#fff', border: 'none', cursor: 'pointer' }}>
+                <Icon name="delete" className="text-[18px]" style={{ color: '#F04452' }} />
+              </button>
+            )}
+          </header>
+
+          {/* 미디어 */}
+          {post.media_url && (
+            <section className="mb-3 rounded-2xl overflow-hidden">
+              {post.media_type === 'video' ? (
+                <video src={post.media_url} controls playsInline muted className="w-full" />
+              ) : (
+                <img src={post.media_url} alt="사고 사진" className="w-full" />
+              )}
+            </section>
+          )}
+
+          {/* 과실비율 히어로 */}
+          {a?.ratio && (
+            <section className="mb-3 rounded-2xl overflow-hidden" style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)' }}>
+              <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+                <span className="text-[13px] font-semibold text-white/70">예상 과실비율</span>
+                {a.chartCode && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-white/15 text-white/80">
+                    {a.chartCode}
+                  </span>
+                )}
+              </div>
+              <div className="px-5 pb-5">
+                <div className="flex items-end gap-3 mb-4">
+                  <span className="text-[48px] font-black text-white leading-none">
+                    {a.ratio.a.percent}<span className="text-[20px] text-white/50 mx-1">:</span>{a.ratio.b.percent}
+                  </span>
+                </div>
+                <div className="flex rounded-xl overflow-hidden h-3 mb-3 bg-white/10">
+                  <div className="rounded-l-xl" style={{ width: `${a.ratio.a.percent}%`, background: '#60A5FA' }} />
+                  <div className="rounded-r-xl" style={{ width: `${a.ratio.b.percent}%`, background: '#FB7185' }} />
+                </div>
+                <div className="flex justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#60A5FA' }} />
+                    <span className="text-[13px] text-white/80">{a.ratio.a.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-white/80">{a.ratio.b.label}</span>
+                    <div className="w-2 h-2 rounded-full" style={{ background: '#FB7185' }} />
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 사고 요약 */}
+          {a?.summary && (
+            <section className="bg-white rounded-2xl p-5 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#EBF4FF' }}>📝</div>
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>사고 요약</p>
+              </div>
+              <p className="text-[15px] leading-[2]" style={{ color: '#4E5968' }}>{a.summary}</p>
+            </section>
+          )}
+
+          {/* 과실 판단 사유 */}
+          {a?.ratio?.reason && (
+            <section className="bg-white rounded-2xl p-5 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#FFF0F0' }}>⚖️</div>
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>과실 판단</p>
+              </div>
+              <p className="text-[15px] leading-[2]" style={{ color: '#4E5968' }}>{a.ratio.reason}</p>
+            </section>
+          )}
+
+          {/* 적용 법규 */}
+          {a?.laws?.length > 0 && (
+            <section className="bg-white rounded-2xl p-5 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#F0FFF4' }}>📚</div>
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>적용 법규</p>
+              </div>
+              <div className="space-y-3">
+                {a.laws.map((law: any, i: number) => (
+                  <div key={i} className="p-4 rounded-xl" style={{ background: '#F8FAFC' }}>
+                    <p className="text-[14px] font-bold mb-2" style={{ color: '#191F28' }}>{law.name}</p>
+                    <p className="text-[13px] leading-[1.8] mb-1" style={{ color: '#4E5968' }}>{law.content}</p>
+                    <p className="text-[13px] leading-[1.8]" style={{ color: '#6B7684' }}><strong style={{ color: '#333D4B' }}>관련성:</strong> {law.relevance}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 유사 판례 */}
+          {a?.cases?.length > 0 && (
+            <section className="bg-white rounded-2xl p-5 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#FFF8F0' }}>🔍</div>
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>유사 판례</p>
+              </div>
+              <div className="space-y-3">
+                {a.cases.map((c: any, i: number) => (
+                  <div key={i} className="p-4 rounded-xl" style={{ background: '#F8FAFC' }}>
+                    <p className="text-[14px] font-bold mb-2" style={{ color: '#191F28' }}>{c.title}</p>
+                    <p className="text-[13px] leading-[1.8] mb-1" style={{ color: '#4E5968' }}>{c.facts}</p>
+                    <p className="text-[13px] leading-[1.8]" style={{ color: '#6B7684' }}><strong style={{ color: '#333D4B' }}>판단:</strong> {c.ruling}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 참고사항 */}
+          {a?.notes?.length > 0 && (
+            <section className="bg-white rounded-2xl p-5 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#F2EAFA' }}>📌</div>
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>참고사항</p>
+              </div>
+              <ul className="space-y-2.5">
+                {a.notes.map((n: string, i: number) => (
+                  <li key={i} className="flex items-start gap-2.5 text-[14px] leading-[1.9]" style={{ color: '#4E5968' }}>
+                    <span className="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style={{ background: '#3182F6' }} />
+                    {n}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* 댓글 */}
+          <section className="bg-white rounded-2xl p-5 mb-3">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#F0F4FF' }}>💬</div>
+              <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>댓글</p>
+              <span className="text-[13px]" style={{ color: '#ADB5BD' }}>{comments.length}</span>
+            </div>
+
+            {/* 댓글 목록 */}
+            {comments.length > 0 ? (
+              <div className="space-y-2.5 mb-4">
+                {comments.map(c => (
+                  <div key={c.id} className="rounded-xl p-3.5" style={{ background: '#F8FAFC' }}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white" style={{ background: c.session_token === sessionToken ? '#3182F6' : '#8B95A1' }}>
+                        {c.nickname.charAt(0)}
+                      </div>
+                      <span className="text-[12px] font-semibold" style={{ color: '#333D4B' }}>{c.nickname}</span>
+                      <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(c.created_at)}</span>
+                      {c.session_token === sessionToken && (
+                        <button onClick={() => handleDeleteComment(c.id)}
+                          className="ml-auto p-0.5" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                          <Icon name="close" className="text-[14px]" style={{ color: '#ADB5BD' }} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[13px] leading-[1.7]" style={{ color: '#4E5968' }}>{c.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-[13px] mb-4" style={{ color: '#ADB5BD' }}>아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
+            )}
+
+            {/* 댓글 입력 */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmitComment(); }}
+                placeholder="댓글을 입력하세요..."
+                className="flex-1 text-[13px] px-3.5 py-2.5 rounded-xl outline-none"
+                style={{ background: '#F2F4F6', border: '1.5px solid transparent', color: '#333D4B' }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#3182F6'; e.currentTarget.style.background = '#fff'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = '#F2F4F6'; }}
+                maxLength={300}
+              />
+              <button
+                onClick={handleSubmitComment}
+                disabled={!commentText.trim() || submitting}
+                className="px-3.5 rounded-xl flex items-center justify-center active:scale-95 transition-all"
+                style={{
+                  background: commentText.trim() ? '#3182F6' : '#E5E8EB',
+                  border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
+                }}>
+                <Icon name="send" className="text-[18px]" style={{ color: commentText.trim() ? '#fff' : '#ADB5BD' }} />
+              </button>
+            </div>
+          </section>
+
+          {/* 면책 */}
+          <div className="p-3 rounded-xl flex items-center gap-2 mb-24" style={{ background: '#F9FAFB' }}>
+            <Icon name="info" className="text-sm" style={{ color: '#ADB5BD' }} />
+            <p className="text-[11px]" style={{ color: '#ADB5BD' }}>AI 생성 결과이며 법적 구속력이 없습니다</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

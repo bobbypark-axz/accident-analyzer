@@ -6,6 +6,7 @@ import { generateEmbedding } from './lib/embeddings';
 
 import AccidentWizard from './AccidentWizard';
 import { searchDocuments } from './lib/supabase';
+import ShareModal from './community/ShareModal';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
   return (
@@ -53,37 +54,15 @@ interface PredictionResult {
 const FLASK_API = import.meta.env.VITE_FLASK_API || 'http://localhost:5000';
 
 
-const SYSTEM_PROMPT = `당신은 교통사고 분석 전문가이자 법률 해설가입니다.
-사용자의 사고 상황을 분석하여 아래 JSON 형식으로만 응답하세요. JSON 외 텍스트는 절대 포함하지 마세요.
+const SYSTEM_PROMPT = `당신은 교통사고 분석 전문가입니다. 반드시 아래 JSON만 출력하세요.
+코드블록(\`\`\`)이나 설명 텍스트 없이 순수 JSON만 출력하세요.
+키 이름을 절대 변경하지 마세요. 아래 키 이름을 정확히 사용하세요.
 
-{
-  "summary": "사고 개요를 2~3문장으로 정리",
-  "chartCode": "가장 유사한 손보협 도표번호",
-  "chartName": "해당 도표의 사고 유형명",
-  "ratio": {
-    "a": { "label": "A 정의", "percent": 70 },
-    "b": { "label": "B 정의", "percent": 30 },
-    "reason": "이 비율의 핵심 근거 2~3문장"
-  },
-  "laws": [
-    { "name": "도로교통법 제XX조(조항명)", "content": "조문 요약", "relevance": "관련성", "effect": "법적 효과" }
-  ],
-  "cases": [
-    { "title": "사례 제목", "facts": "사실관계", "ruling": "과실비율", "reason": "판단 근거" }
-  ],
-  "notes": ["참고사항"],
-  "needed": ["필요한 정보"]
-}
+{"summary":"사고 개요 2~3문장","chartCode":"차X-X","chartName":"도표 유형명","ratio":{"a":{"label":"A 정의","percent":70},"b":{"label":"B 정의","percent":30},"reason":"핵심 근거 2~3문장"},"laws":[{"name":"도로교통법 제X조(조항명)","content":"조문 요약","relevance":"관련성","effect":"법적 효과"}],"cases":[{"title":"사례 제목","facts":"사실관계","ruling":"과실비율","reason":"판단 근거"}],"notes":["참고사항"],"needed":["필요한 정보"]}
 
-손보협 도표: 차1-1~차5-1(신호교차로), 차10-1~차17-1(비신호/T자), 차20-1(중앙선침범), 차21-1(차선변경), 차31-1~31-2(교행), 차41-1~차44-1(추돌), 차43-1~43-4(진로변경), 차51-1~51-2(주차장)
+chartCode 목록: 차1-1, 차1-2, 차2-1, 차2-2, 차3-1, 차3-2, 차4-1, 차4-2, 차5-1, 차10-1, 차11-1, 차11-2, 차12-1, 차13-1, 차14-1, 차15-1, 차16-1, 차16-2, 차17-1, 차20-1, 차21-1, 차31-1, 차31-2, 차41-1, 차42-1, 차42-2, 차42-3, 차43-1, 차43-2, 차43-3, 차43-4, 차44-1, 차51-1, 차51-2
 
-규칙:
-- 정확히 일치하지 않아도 가장 가까운 도표 선택
-- 모든 답변은 실제 도로교통법과 판례 기반. 허위 조항 금지
-- laws 2~3개, cases 1~2개
-- ratio.a.percent + ratio.b.percent = 100
-- 정보 부족해도 가능한 범위에서 분석 먼저 시도
-- 한국어. 정중하고 논리적인 전문가 어투`;
+규칙: chartCode는 반드시 위 목록에서 선택. laws 2~3개, cases 1~2개. ratio합=100. 실제 법규기반. 한국어.`;
 
 const accidentTemplates = [
   { label: '교차로 사고', icon: 'signpost', text: '[사고 장소] 신호등이 있는 사거리 교차로\n[내 차량] 직진 차로에서 초록불에 직진 중\n[상대 차량] 맞은편에서 비보호 좌회전 시도\n[충돌 부위] 내 차량 우측 앞범퍼 / 상대 차량 좌측 측면' },
@@ -108,7 +87,7 @@ const faqItems = [
   { question: '개인정보는 안전한가요?', answer: '입력하신 사고 상황 정보는 과실비율 예측에만 사용되며, 별도로 저장되지 않습니다.' },
 ];
 
-export function App() {
+export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?: number; onNavigateToCommunity?: () => void } = {}) {
   const [accidentDetails, setAccidentDetails] = useState('');
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -128,6 +107,7 @@ export function App() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [frameIdx, setFrameIdx] = useState(0);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
@@ -304,15 +284,51 @@ export function App() {
     setShowShareCard(false);
   }, []);
 
+  const [fileError, setFileError] = useState<string | null>(null);
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
+
   const handleFile = (file: File) => {
+    setFileError(null);
+    setVideoDuration(null);
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-      alert('이미지 또는 영상 파일만 업로드 가능합니다.');
+      setFileError('이미지 또는 영상 파일만 업로드 가능합니다.');
+      return;
+    }
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.src = url;
+      video.onloadedmetadata = () => {
+        const dur = video.duration;
+        URL.revokeObjectURL(url);
+        setVideoDuration(Math.round(dur));
+        if (dur > 40) {
+          setFileError(`영상이 ${Math.round(dur)}초입니다. 40초 이하만 분석 가능합니다.`);
+          setSelectedFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        } else {
+          setSelectedFile(file);
+        }
+      };
+      video.onerror = () => {
+        URL.revokeObjectURL(url);
+        setSelectedFile(file);
+      };
       return;
     }
     setSelectedFile(file);
   };
 
   const handlePredict = async () => {
+    // 영상 20초 제한 재확인
+    if (useDetailedAnalysis && selectedFile?.type.startsWith('video/') && videoDuration && videoDuration > 40) {
+      setFileError(`영상이 ${videoDuration}초입니다. 40초 이하만 분석 가능합니다.`);
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsLoading(true);
     setPrediction(null);
     setError(null);
@@ -355,15 +371,18 @@ export function App() {
         const scenario = d.scenario || '';
         let videoAnalysis: AnalysisData | undefined;
         try {
-          const startIdx = scenario.indexOf('{');
+          const cleaned = scenario.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          const startIdx = cleaned.indexOf('{');
           if (startIdx !== -1) {
             let depth = 0;
             let endIdx = startIdx;
-            for (let i = startIdx; i < scenario.length; i++) {
-              if (scenario[i] === '{') depth++;
-              else if (scenario[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
+            for (let i = startIdx; i < cleaned.length; i++) {
+              if (cleaned[i] === '{') depth++;
+              else if (cleaned[i] === '}') { depth--; if (depth === 0) { endIdx = i; break; } }
             }
-            const parsed = JSON.parse(scenario.slice(startIdx, endIdx + 1));
+            const parsed = JSON.parse(cleaned.slice(startIdx, endIdx + 1));
+            if (!parsed.chartCode && parsed.applicable_chart) parsed.chartCode = parsed.applicable_chart;
+            if (!parsed.chartCode && parsed.chart_code) parsed.chartCode = parsed.chart_code;
             if (parsed.summary && parsed.ratio) {
               if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
               if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
@@ -422,19 +441,22 @@ export function App() {
       const data = await response.json();
       const generatedText = data.choices?.[0]?.message?.content || '';
 
-      // JSON 파싱 시도
+      // JSON 파싱 시도 (코드블록 제거 + 유연한 키 매핑)
       let analysis: AnalysisData | undefined;
       try {
-        const si = generatedText.indexOf('{');
+        const cleaned = generatedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+        const si = cleaned.indexOf('{');
         if (si !== -1) {
           let d = 0, ei = si;
-          for (let i = si; i < generatedText.length; i++) {
-            if (generatedText[i] === '{') d++;
-            else if (generatedText[i] === '}') { d--; if (d === 0) { ei = i; break; } }
+          for (let i = si; i < cleaned.length; i++) {
+            if (cleaned[i] === '{') d++;
+            else if (cleaned[i] === '}') { d--; if (d === 0) { ei = i; break; } }
           }
-          const parsed = JSON.parse(generatedText.slice(si, ei + 1));
+          const parsed = JSON.parse(cleaned.slice(si, ei + 1));
+          // chartCode 유연 매핑
+          if (!parsed.chartCode && parsed.applicable_chart) parsed.chartCode = parsed.applicable_chart;
+          if (!parsed.chartCode && parsed.chart_code) parsed.chartCode = parsed.chart_code;
           if (parsed.summary && parsed.ratio) {
-            // percent를 숫자로 보장
             if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
             if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
             analysis = parsed;
@@ -458,7 +480,7 @@ export function App() {
     if (!m) return null;
     const [, labelA, labelB, ratioA, ratioB] = m;
     const a = parseInt(ratioA), b = parseInt(ratioB);
-    if (a + b < 10 || a + b > 200) return null;
+    if (a + b < 10 || a + b > 400) return null;
     return { labelA: labelA.replace(/[*()\[\]]/g, '').trim(), labelB: labelB.replace(/[*()\[\]]/g, '').trim(), a, b };
   };
 
@@ -651,6 +673,13 @@ export function App() {
                 <p className="text-[11px] mt-0.5" style={{ color: '#ADB5BD' }}>MP4, AVI, MOV, JPG, PNG</p>
               </div>
               <input ref={fileInputRef} type="file" accept="video/*,image/*" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
+
+              {fileError && (
+                <div className="flex items-center gap-2 px-4 py-3 rounded-xl mt-3" style={{ background: '#FFF0F0' }}>
+                  <span className="text-[14px]">⚠️</span>
+                  <p className="text-[13px] font-medium" style={{ color: '#F04452' }}>{fileError}</p>
+                </div>
+              )}
 
               {selectedFile && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl mt-3" style={{ background: '#F7F8F9' }}>
@@ -1023,12 +1052,33 @@ export function App() {
 
               {/* 3. 액션 바 */}
               <section className="bg-white rounded-2xl overflow-hidden mb-2">
-                <div className="p-4">
+                <div className="p-4 flex gap-2">
                   <button onClick={handleShare}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.97] transition-all"
-                    style={{ background: copied ? '#00B894' : '#3182F6', border: 'none', cursor: 'pointer', transition: 'background 0.3s' }}>
-                    <Icon name={copied ? 'check' : 'link'} className="text-[18px]" style={{ color: '#fff' }} />
-                    <span className="text-[14px] font-bold" style={{ color: '#fff' }}>{copied ? '링크가 복사되었습니다!' : '분석 결과 링크 복사'}</span>
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.97] transition-all"
+                    style={{ background: copied ? '#00B894' : '#F2F4F6', border: 'none', cursor: 'pointer', transition: 'background 0.3s' }}>
+                    <Icon name={copied ? 'check' : 'link'} className="text-[16px]" style={{ color: copied ? '#fff' : '#4E5968' }} />
+                    <span className="text-[13px] font-bold" style={{ color: copied ? '#fff' : '#4E5968' }}>{copied ? '복사됨' : '링크 복사'}</span>
+                  </button>
+                  <button onClick={() => setShowShareModal(true)}
+                    className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.97] transition-all"
+                    style={{ background: '#3182F6', border: 'none', cursor: 'pointer' }}>
+                    <Icon name="forum" className="text-[16px]" style={{ color: '#fff' }} />
+                    <span className="text-[13px] font-bold" style={{ color: '#fff' }}>커뮤니티에 공유</span>
+                  </button>
+                </div>
+                {/* 다시 분석하기 */}
+                <div className="px-4 mb-4">
+                  <button onClick={() => {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                    setPrediction(null); setError(null); setShowFullResult(false);
+                    setSelectedFile(null); setAccidentDetails(''); setStructuredData(null);
+                    setInputMode('wizard');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                  }}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.98] transition-all"
+                    style={{ border: '1.5px solid #E5E8EB', background: '#F9FAFB', cursor: 'pointer' }}>
+                    <Icon name="refresh" className="text-[16px]" style={{ color: '#6B7684' }} />
+                    <span className="text-[13px] font-bold" style={{ color: '#6B7684' }}>새로운 사고 분석하기</span>
                   </button>
                 </div>
                 <div className="mx-4 mb-4 p-3 rounded-xl flex items-center gap-2" style={{ background: '#F9FAFB' }}>
@@ -1063,32 +1113,18 @@ export function App() {
           <footer className="mt-8 py-6 text-center">
             <p className="text-[11px]" style={{ color: '#ADB5BD' }}>본 서비스는 참고용으로만 사용되어야 하며, 법적 조언을 대체할 수 없습니다.</p>
           </footer>
-          <div className="h-24" />
+          <div style={{ height: bottomOffset ? 200 : 96 }} />
         </div>
       </div>
 
-      {/* 하단 CTA — 위자드 모드에서는 위자드 안에 버튼이 있으므로 숨김 */}
-      {(inputMode === 'text' || prediction || isLoading) && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 40, padding: '8px 24px max(env(safe-area-inset-bottom), 12px)', maxWidth: 672, margin: '0 auto', background: 'linear-gradient(transparent, #F4F4F4 16px)' }}>
-          {prediction ? (
-            <button onClick={() => {
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-              setPrediction(null); setError(null); setShowFullResult(false);
-              setSelectedFile(null); setAccidentDetails(''); setStructuredData(null);
-              setInputMode('wizard');
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
-              className="w-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-              style={{ padding: 15, borderRadius: 14, border: 'none', background: '#3182F6', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
-              <Icon name="refresh" className="text-lg" /> 다시 분석하기
-            </button>
-          ) : (
-            <button onClick={handlePredict} disabled={!canSubmit || isLoading}
-              className="w-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
-              style={{ padding: 15, borderRadius: 14, border: 'none', background: !canSubmit || isLoading ? '#E5E8EB' : '#3182F6', color: !canSubmit || isLoading ? '#ADB5BD' : '#fff', fontSize: 16, fontWeight: 700, cursor: !canSubmit || isLoading ? 'not-allowed' : 'pointer' }}>
-              {isLoading ? '분석 중...' : useDetailedAnalysis ? '영상 분석하기' : '과실비율 분석하기'}
-            </button>
-          )}
+      {/* 하단 CTA — 분석 버튼만 (결과 나오면 숨김) */}
+      {!prediction && !isLoading && inputMode === 'text' && (
+        <div style={{ position: 'fixed', bottom: bottomOffset, left: 0, right: 0, zIndex: 40, padding: '8px 24px 12px', maxWidth: 672, margin: '0 auto', background: 'linear-gradient(transparent, #F4F4F4 16px)' }}>
+          <button onClick={handlePredict} disabled={!canSubmit || isLoading}
+            className="w-full flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+            style={{ padding: 15, borderRadius: 14, border: 'none', background: !canSubmit || isLoading ? '#E5E8EB' : '#3182F6', color: !canSubmit || isLoading ? '#ADB5BD' : '#fff', fontSize: 16, fontWeight: 700, cursor: !canSubmit || isLoading ? 'not-allowed' : 'pointer' }}>
+            {isLoading ? '분석 중...' : useDetailedAnalysis ? '영상 분석하기' : '과실비율 분석하기'}
+          </button>
         </div>
       )}
 
@@ -1159,6 +1195,18 @@ export function App() {
             </div>
           </div>
         </div>
+      )}
+      {/* 커뮤니티 공유 모달 */}
+      {showShareModal && a && (
+        <ShareModal
+          analysis={a}
+          mediaFile={selectedFile}
+          onClose={() => setShowShareModal(false)}
+          onSuccess={() => {
+            setShowShareModal(false);
+            onNavigateToCommunity?.();
+          }}
+        />
       )}
     </main>
   );
