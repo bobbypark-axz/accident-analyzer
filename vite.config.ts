@@ -1,5 +1,6 @@
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
@@ -7,6 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
   plugins: [
     react(),
+    basicSsl(),
     // 로컬 개발용 /api/chat 프록시 플러그인
     {
       name: 'local-api-proxy',
@@ -61,6 +63,52 @@ export default defineConfig(({ mode }) => {
         });
 
 
+
+        // /api/transcribe 프록시 (OpenAI Whisper API)
+        server.middlewares.use('/api/transcribe', async (req, res) => {
+          if (req.method === 'OPTIONS') { res.writeHead(200, corsHeaders); res.end(); return; }
+          if (req.method !== 'POST') { res.writeHead(405, { ...corsHeaders, 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'Method not allowed' })); return; }
+
+          let body = '';
+          req.on('data', (chunk: Buffer) => { body += chunk.toString(); });
+          req.on('end', async () => {
+            try {
+              const apiKey = env.OPENAI_API_KEY;
+              if (!apiKey) { res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'OPENAI_API_KEY가 .env에 설정되지 않았습니다.' })); return; }
+
+              const { audio } = JSON.parse(body);
+              if (!audio) { res.writeHead(400, { ...corsHeaders, 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: '오디오 데이터가 필요합니다.' })); return; }
+
+              const audioBuffer = Buffer.from(audio, 'base64');
+              const blob = new Blob([audioBuffer], { type: 'audio/webm' });
+              const formData = new FormData();
+              formData.append('file', blob, 'recording.webm');
+              formData.append('model', 'whisper-1');
+              formData.append('language', 'ko');
+              formData.append('prompt', '교통사고 상황 설명. 신호등, 교차로, 차선, 직진, 좌회전, 우회전, 추돌, 접촉, 과실.');
+
+              const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${apiKey}` },
+                body: formData,
+              });
+
+              if (!response.ok) {
+                const err = await response.json().catch(() => ({}));
+                res.writeHead(response.status, { ...corsHeaders, 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: err.error?.message || '음성 인식 실패' }));
+                return;
+              }
+
+              const data = await response.json();
+              res.writeHead(200, { ...corsHeaders, 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ text: data.text }));
+            } catch (err: any) {
+              res.writeHead(500, { ...corsHeaders, 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: err.message || '서버 오류' }));
+            }
+          });
+        });
 
         // /api/chat 프록시 (Anthropic Claude API + Langfuse)
         let langfuseClient: any = null;

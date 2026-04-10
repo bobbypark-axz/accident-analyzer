@@ -180,6 +180,17 @@ textarea:focus {
   border-color: #F2F4F6;
 }
 
+/* 마이크 펄스 애니메이션 */
+@keyframes pulse-mic {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 68, 82, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(240, 68, 82, 0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* 스크롤바 스타일링 */
 ::-webkit-scrollbar {
   width: 6px;

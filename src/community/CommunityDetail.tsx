@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment } from '../lib/community';
+import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment, incrementViewCount, toggleLike, getLikeStatus } from '../lib/community';
 import { trackEvent } from '../lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
@@ -14,10 +14,24 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [viewCount, setViewCount] = useState(post.view_count || 0);
+  const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
     fetchComments(post.id).then(setComments);
+    incrementViewCount(post.id).then(count => setViewCount(count));
+    getLikeStatus(post.id).then(s => { setLiked(s.liked); setLikeCount(s.count); });
   }, [post.id]);
+
+  const handleToggleLike = async () => {
+    const result = await toggleLike(post.id);
+    if (result) {
+      setLiked(result.liked);
+      setLikeCount(result.count);
+    }
+  };
 
   const handleSubmitComment = async () => {
     const text = commentText.trim();
@@ -44,6 +58,8 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
     else alert('삭제에 실패했습니다.');
   };
 
+  const latestComment = comments.length > 0 ? comments[comments.length - 1] : null;
+
   return (
     <div className="min-h-screen pb-24" style={{ background: '#F4F4F4' }}>
       <div className="container mx-auto px-4 py-6 sm:py-10">
@@ -68,16 +84,62 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
             )}
           </header>
 
-          {/* 미디어 */}
-          {post.media_url && (
-            <section className="mb-3 rounded-2xl overflow-hidden">
-              {post.media_type === 'video' ? (
-                <video src={post.media_url} controls playsInline muted className="w-full" />
-              ) : (
-                <img src={post.media_url} alt="사고 사진" className="w-full" />
-              )}
-            </section>
-          )}
+          {/* 게시물 카드 (글 + 미디어 + 반응) */}
+          <section className="bg-white rounded-2xl overflow-hidden mb-3">
+            {/* 작성자 글 */}
+            {post.description && (
+              <div className="px-5 pt-4 pb-3">
+                <p className="text-[15px] leading-[1.8]" style={{ color: '#191F28' }}>{post.description}</p>
+              </div>
+            )}
+
+            {/* 메인 미디어 */}
+            {post.media_url && (
+              <div>
+                {post.media_type === 'video' ? (
+                  <video src={post.media_url} controls playsInline muted className="w-full" />
+                ) : (
+                  <img src={post.media_url} alt="사고 사진" className="w-full" />
+                )}
+              </div>
+            )}
+
+            {/* 추가 사진 갤러리 */}
+            {post.photo_urls && post.photo_urls.length > 0 && (
+              <div className="px-4 pt-3">
+                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                  {post.photo_urls.map((url, i) => (
+                    <img key={i} src={url} alt={`사고 사진 ${i + 1}`}
+                      className="h-28 rounded-xl object-cover flex-shrink-0 cursor-pointer active:scale-95 transition-all"
+                      onClick={() => window.open(url, '_blank')}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 반응 바 */}
+            <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: '1px solid #F2F4F6' }}>
+              <button onClick={handleToggleLike}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-95 transition-all"
+                style={{ background: liked ? '#FFF0F0' : '#F2F4F6', border: 'none', cursor: 'pointer' }}>
+                <Icon name={liked ? 'favorite' : 'favorite_border'} className="text-[18px]" style={{ color: liked ? '#F04452' : '#ADB5BD' }} filled={liked} />
+                <span className="text-[13px] font-bold" style={{ color: liked ? '#F04452' : '#6B7684' }}>{likeCount}</span>
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
+                  <Icon name="visibility" className="text-[16px]" style={{ color: '#ADB5BD' }} />
+                  <span className="text-[12px]" style={{ color: '#ADB5BD' }}>{viewCount}</span>
+                </div>
+                <button onClick={() => setShowComments(true)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <Icon name="chat_bubble_outline" className="text-[16px]" style={{ color: '#ADB5BD' }} />
+                  <span className="text-[12px]" style={{ color: '#ADB5BD' }}>{comments.length}</span>
+                </button>
+              </div>
+            </div>
+          </section>
 
           {/* 과실비율 히어로 */}
           {a?.ratio && (
@@ -192,66 +254,37 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
             </section>
           )}
 
-          {/* 댓글 */}
-          <section className="bg-white rounded-2xl p-5 mb-3">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-xl flex items-center justify-center text-sm" style={{ background: '#F0F4FF' }}>💬</div>
-              <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>댓글</p>
-              <span className="text-[13px]" style={{ color: '#ADB5BD' }}>{comments.length}</span>
+          {/* 댓글 미리보기 (유튜브 스타일) */}
+          <button
+            onClick={() => setShowComments(true)}
+            className="w-full text-left bg-white rounded-2xl p-5 mb-3 active:scale-[0.98] transition-all"
+            style={{ border: 'none', cursor: 'pointer' }}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <p className="text-[15px] font-bold" style={{ color: '#191F28' }}>댓글</p>
+                <span className="text-[13px] font-semibold" style={{ color: '#3182F6' }}>{comments.length}</span>
+              </div>
+              <Icon name="expand_more" className="text-[20px]" style={{ color: '#ADB5BD' }} />
             </div>
-
-            {/* 댓글 목록 */}
-            {comments.length > 0 ? (
-              <div className="space-y-2.5 mb-4">
-                {comments.map(c => (
-                  <div key={c.id} className="rounded-xl p-3.5" style={{ background: '#F8FAFC' }}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white" style={{ background: c.session_token === sessionToken ? '#3182F6' : '#8B95A1' }}>
-                        {c.nickname.charAt(0)}
-                      </div>
-                      <span className="text-[12px] font-semibold" style={{ color: '#333D4B' }}>{c.nickname}</span>
-                      <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(c.created_at)}</span>
-                      {c.session_token === sessionToken && (
-                        <button onClick={() => handleDeleteComment(c.id)}
-                          className="ml-auto p-0.5" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                          <Icon name="close" className="text-[14px]" style={{ color: '#ADB5BD' }} />
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-[13px] leading-[1.7]" style={{ color: '#4E5968' }}>{c.content}</p>
+            {latestComment ? (
+              <div className="flex items-start gap-2.5">
+                <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-[9px] font-bold text-white mt-0.5"
+                  style={{ background: latestComment.session_token === sessionToken ? '#3182F6' : '#8B95A1' }}>
+                  {latestComment.nickname.charAt(0)}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="text-[12px] font-semibold" style={{ color: '#333D4B' }}>{latestComment.nickname}</span>
+                    <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(latestComment.created_at)}</span>
                   </div>
-                ))}
+                  <p className="text-[13px] truncate" style={{ color: '#4E5968' }}>{latestComment.content}</p>
+                </div>
               </div>
             ) : (
-              <p className="text-[13px] mb-4" style={{ color: '#ADB5BD' }}>아직 댓글이 없습니다. 첫 댓글을 남겨보세요!</p>
+              <p className="text-[13px]" style={{ color: '#ADB5BD' }}>첫 댓글을 남겨보세요</p>
             )}
-
-            {/* 댓글 입력 */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={commentText}
-                onChange={e => setCommentText(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmitComment(); }}
-                placeholder="댓글을 입력하세요..."
-                className="flex-1 text-[13px] px-3.5 py-2.5 rounded-xl outline-none"
-                style={{ background: '#F2F4F6', border: '1.5px solid transparent', color: '#333D4B' }}
-                onFocus={e => { e.currentTarget.style.borderColor = '#3182F6'; e.currentTarget.style.background = '#fff'; }}
-                onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = '#F2F4F6'; }}
-                maxLength={300}
-              />
-              <button
-                onClick={handleSubmitComment}
-                disabled={!commentText.trim() || submitting}
-                className="px-3.5 rounded-xl flex items-center justify-center active:scale-95 transition-all"
-                style={{
-                  background: commentText.trim() ? '#3182F6' : '#E5E8EB',
-                  border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
-                }}>
-                <Icon name="send" className="text-[18px]" style={{ color: commentText.trim() ? '#fff' : '#ADB5BD' }} />
-              </button>
-            </div>
-          </section>
+          </button>
 
           {/* 면책 */}
           <div className="p-3 rounded-xl flex items-center gap-2 mb-24" style={{ background: '#F9FAFB' }}>
@@ -260,6 +293,96 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
           </div>
         </div>
       </div>
+
+      {/* 댓글 바텀시트 */}
+      {showComments && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowComments(false)}>
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.5)' }} />
+          <div
+            className="relative w-full max-w-xl bg-white rounded-t-3xl flex flex-col"
+            style={{ maxHeight: '75vh' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* 시트 헤더 */}
+            <div className="px-6 pt-4 pb-3 flex-shrink-0">
+              <div className="flex justify-center mb-3">
+                <div className="w-10 h-1 rounded-full" style={{ background: '#E5E8EB' }} />
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-[16px] font-bold" style={{ color: '#191F28' }}>댓글 {comments.length}개</p>
+                <button onClick={() => setShowComments(false)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                  style={{ background: '#F2F4F6', border: 'none', cursor: 'pointer' }}>
+                  <Icon name="close" className="text-[18px]" style={{ color: '#6B7684' }} />
+                </button>
+              </div>
+            </div>
+
+            {/* 댓글 목록 (스크롤) */}
+            <div className="flex-1 overflow-y-auto px-6 pb-3" style={{ minHeight: 120 }}>
+              {comments.length > 0 ? (
+                <div className="space-y-3">
+                  {comments.map(c => (
+                    <div key={c.id} className="flex items-start gap-2.5">
+                      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-[11px] font-bold text-white mt-0.5"
+                        style={{ background: c.session_token === sessionToken ? '#3182F6' : '#8B95A1' }}>
+                        {c.nickname.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className="text-[12px] font-semibold" style={{ color: '#333D4B' }}>{c.nickname}</span>
+                          <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(c.created_at)}</span>
+                          {c.session_token === sessionToken && (
+                            <button onClick={() => handleDeleteComment(c.id)}
+                              className="ml-auto p-0.5" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                              <Icon name="close" className="text-[14px]" style={{ color: '#ADB5BD' }} />
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-[13px] leading-[1.7]" style={{ color: '#4E5968' }}>{c.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-10">
+                  <Icon name="chat_bubble_outline" className="text-[36px] mb-2" style={{ color: '#E5E8EB' }} />
+                  <p className="text-[13px]" style={{ color: '#ADB5BD' }}>아직 댓글이 없습니다</p>
+                </div>
+              )}
+            </div>
+
+            {/* 댓글 입력 (하단 고정) */}
+            <div className="flex-shrink-0 px-6 pb-6 pt-3" style={{ borderTop: '1px solid #F2F4F6', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleSubmitComment(); }}
+                  placeholder="댓글 추가..."
+                  className="flex-1 text-[14px] px-4 py-3 rounded-xl outline-none"
+                  style={{ background: '#F2F4F6', border: '1.5px solid transparent', color: '#333D4B' }}
+                  onFocus={e => { e.currentTarget.style.borderColor = '#3182F6'; e.currentTarget.style.background = '#fff'; }}
+                  onBlur={e => { e.currentTarget.style.borderColor = 'transparent'; e.currentTarget.style.background = '#F2F4F6'; }}
+                  maxLength={300}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSubmitComment}
+                  disabled={!commentText.trim() || submitting}
+                  className="px-4 rounded-xl flex items-center justify-center active:scale-95 transition-all"
+                  style={{
+                    background: commentText.trim() ? '#3182F6' : '#E5E8EB',
+                    border: 'none', cursor: commentText.trim() ? 'pointer' : 'default',
+                  }}>
+                  <Icon name="send" className="text-[18px]" style={{ color: commentText.trim() ? '#fff' : '#ADB5BD' }} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

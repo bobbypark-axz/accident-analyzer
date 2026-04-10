@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { fetchPosts, timeAgo, type CommunityPost } from '../lib/community';
+import { useState, useEffect, useCallback } from 'react';
+import { fetchPosts, timeAgo, toggleLike, getSessionToken, type CommunityPost } from '../lib/community';
 import CommunityDetail from './CommunityDetail';
 import { trackEvent } from '../lib/analytics';
 
@@ -7,19 +7,9 @@ function Icon({ name, className = '', filled = false, style }: { name: string; c
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
 }
 
-function getShortTitle(summary?: string): string {
-  if (!summary) return '';
-  // 첫 문장 추출 (마침표, 쉼표, ~입니다 등으로 끊기)
-  const match = summary.match(/^(.+?)[.。]/) || summary.match(/^(.+?(?:입니다|습니다|었습니다|됩니다))/);
-  if (match && match[1].length <= 35) return match[1];
-  // 없으면 30자 + 자연스러운 끊기
-  const cut = summary.slice(0, 30);
-  const lastSpace = cut.lastIndexOf(' ');
-  return (lastSpace > 15 ? cut.slice(0, lastSpace) : cut) + '…';
-}
-
 export default function CommunityPage() {
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [posts, setPosts] = useState<(CommunityPost & { like_count: number })[]>([]);
+  const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -29,6 +19,18 @@ export default function CommunityPage() {
     loadPosts();
   }, [page]);
 
+  // 내가 좋아요한 게시물 확인
+  useEffect(() => {
+    if (posts.length === 0) return;
+    const token = getSessionToken();
+    import('../lib/supabase').then(({ supabase }) => {
+      if (!supabase) return;
+      supabase.from('likes').select('post_id').eq('session_token', token).then(({ data }) => {
+        if (data) setLikedPosts(new Set(data.map(d => d.post_id)));
+      });
+    });
+  }, [posts.length]);
+
   const loadPosts = async () => {
     setLoading(true);
     const result = await fetchPosts(page);
@@ -37,8 +39,22 @@ export default function CommunityPage() {
     setLoading(false);
   };
 
+  const handleLike = useCallback(async (e: React.MouseEvent, postId: string) => {
+    e.stopPropagation();
+    const result = await toggleLike(postId);
+    if (!result) return;
+    setLikedPosts(prev => {
+      const next = new Set(prev);
+      result.liked ? next.add(postId) : next.delete(postId);
+      return next;
+    });
+    setPosts(prev => prev.map(p =>
+      p.id === postId ? { ...p, like_count: result.count } : p
+    ));
+  }, []);
+
   if (selectedPost) {
-    return <CommunityDetail post={selectedPost} onBack={() => setSelectedPost(null)} />;
+    return <CommunityDetail post={selectedPost} onBack={() => { setSelectedPost(null); setPage(1); loadPosts(); }} />;
   }
 
   return (
@@ -46,9 +62,18 @@ export default function CommunityPage() {
       <div className="container mx-auto px-4 py-6 sm:py-10">
         <div className="max-w-2xl mx-auto">
           {/* 헤더 */}
-          <header className="pt-6 pb-4">
-            <h1 className="text-[22px] font-bold mb-1" style={{ color: '#191F28' }}>커뮤니티</h1>
-            <p className="text-[14px]" style={{ color: '#8B95A1' }}>다른 사고 분석 결과를 확인해보세요</p>
+          <header className="pt-6 pb-5">
+            <div className="rounded-2xl p-5" style={{ background: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)' }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+                  <Icon name="forum" className="text-[22px]" style={{ color: '#fff' }} filled />
+                </div>
+                <h1 className="text-[20px] font-bold text-white">커뮤니티</h1>
+              </div>
+              <p className="text-[13px] leading-[1.6]" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                다른 분들의 사고 분석 결과를 확인하고 의견을 나눠보세요
+              </p>
+            </div>
           </header>
 
           {/* 피드 */}
@@ -64,68 +89,92 @@ export default function CommunityPage() {
               <p className="text-[13px]" style={{ color: '#ADB5BD' }}>첫 번째로 분석 결과를 공유해보세요!</p>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {posts.map(post => (
-                <button
-                  key={post.id}
-                  onClick={() => { trackEvent('community_post_click', { post_id: post.id }); setSelectedPost(post); }}
-                  className="w-full text-left bg-white rounded-2xl overflow-hidden active:scale-[0.98] transition-all"
-                  style={{ border: 'none', cursor: 'pointer', padding: 0 }}
-                >
-                  <div className="flex">
-                    {/* 썸네일 */}
-                    {post.thumbnail_url ? (
-                      <div className="w-24 h-24 flex-shrink-0 relative">
-                        <img src={post.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                        {post.media_type === 'video' && (
-                          <div className="absolute bottom-1 left-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                            <Icon name="videocam" className="text-[11px]" style={{ color: '#fff' }} />
-                            <span className="text-[9px] font-semibold" style={{ color: '#fff' }}>영상</span>
-                          </div>
-                        )}
+            <div className="space-y-3">
+              {posts.map(post => {
+                const isLiked = likedPosts.has(post.id);
+                return (
+                  <div
+                    key={post.id}
+                    onClick={() => { trackEvent('community_post_click', { post_id: post.id }); setSelectedPost(post); window.scrollTo(0, 0); }}
+                    className="w-full text-left bg-white rounded-2xl overflow-hidden active:scale-[0.98] transition-all"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {/* 프로필 헤더 */}
+                    <div className="px-4 pt-4 pb-2 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-[12px] font-bold text-white"
+                        style={{ background: '#8B95A1' }}>
+                        {post.nickname.charAt(0)}
                       </div>
-                    ) : (
-                      <div className="w-24 h-24 flex-shrink-0 flex items-center justify-center relative" style={{ background: 'linear-gradient(135deg, #1E3A5F, #2563EB)' }}>
-                        <Icon name="car_crash" className="text-[28px]" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                        {post.media_type === 'video' && (
-                          <div className="absolute bottom-1 left-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(0,0,0,0.4)' }}>
-                            <Icon name="videocam" className="text-[11px]" style={{ color: '#fff' }} />
-                            <span className="text-[9px] font-semibold" style={{ color: '#fff' }}>영상</span>
-                          </div>
-                        )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold" style={{ color: '#191F28' }}>{post.nickname}</p>
+                        <p className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(post.created_at)}</p>
                       </div>
-                    )}
-                    {/* 내용 */}
-                    <div className="flex-1 p-3.5 min-w-0">
-                      <p className="text-[14px] font-semibold mb-1.5 truncate" style={{ color: '#191F28' }}>
-                        {post.title || getShortTitle(post.summary) || '사고 분석'}
-                      </p>
-                      {/* 과실비율 바 */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="flex-1 flex rounded-full overflow-hidden h-2" style={{ background: '#E5E8EB' }}>
-                          <div style={{ width: `${post.fault_ratio_a}%`, background: '#60A5FA' }} />
-                          <div style={{ width: `${post.fault_ratio_b}%`, background: '#FB7185' }} />
+                      {post.chart_code && (
+                        <span className="text-[10px] px-2 py-1 rounded-lg font-semibold flex-shrink-0" style={{ background: '#EBF4FF', color: '#3182F6' }}>{post.chart_code}</span>
+                      )}
+                    </div>
+
+                    {/* 본문 + 이미지 */}
+                    <div className="px-4 pb-3">
+                      {post.description && (
+                        <p className="text-[14px] leading-[1.7] mb-2.5" style={{ color: '#191F28' }}>{post.description}</p>
+                      )}
+                      {post.thumbnail_url && (
+                        <div className="relative">
+                          <img src={post.thumbnail_url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
+                          {post.media_type === 'video' && (
+                            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                              <Icon name="play_arrow" className="text-[14px]" style={{ color: '#fff' }} filled />
+                              <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>영상</span>
+                            </div>
+                          )}
+                          {post.photo_urls && post.photo_urls.length > 0 && (
+                            <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                              <Icon name="photo_library" className="text-[12px]" style={{ color: '#fff' }} />
+                              <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>+{post.photo_urls.length}</span>
+                            </div>
+                          )}
                         </div>
-                        <span className="text-[12px] font-bold flex-shrink-0" style={{ color: '#4E5968' }}>
-                          {post.fault_ratio_a}:{post.fault_ratio_b}
-                        </span>
-                      </div>
-                      {/* 메타 */}
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{post.nickname}</span>
-                        <span className="text-[11px]" style={{ color: '#D1D5DB' }}>·</span>
-                        <span className="text-[11px]" style={{ color: '#ADB5BD' }}>{timeAgo(post.created_at)}</span>
-                        {post.chart_code && (
-                          <>
-                            <span className="text-[11px]" style={{ color: '#D1D5DB' }}>·</span>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: '#EBF4FF', color: '#3182F6' }}>{post.chart_code}</span>
-                          </>
-                        )}
+                      )}
+                    </div>
+
+                    {/* 과실비율 */}
+                    <div className="px-4 py-3">
+                      <div className="rounded-xl p-3" style={{ background: '#F8FAFC' }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-semibold" style={{ color: '#8B95A1' }}>예상 과실비율</span>
+                          <span className="text-[15px] font-black" style={{ color: '#191F28' }}>
+                            {post.fault_ratio_a}<span style={{ color: '#ADB5BD', margin: '0 2px' }}>:</span>{post.fault_ratio_b}
+                          </span>
+                        </div>
+                        <div className="flex rounded-full overflow-hidden h-2.5" style={{ background: '#E5E8EB' }}>
+                          <div className="rounded-l-full" style={{ width: `${post.fault_ratio_a}%`, background: '#60A5FA' }} />
+                          <div className="rounded-r-full" style={{ width: `${post.fault_ratio_b}%`, background: '#FB7185' }} />
+                        </div>
                       </div>
                     </div>
+
+                    {/* 반응 바 */}
+                    <div className="px-4 py-3 flex items-center gap-5" style={{ borderTop: '1px solid #F2F4F6' }}>
+                      <button
+                        onClick={(e) => handleLike(e, post.id)}
+                        className="flex items-center gap-1.5 active:scale-90 transition-all"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        <Icon name={isLiked ? 'favorite' : 'favorite_border'} className="text-[18px]" style={{ color: isLiked ? '#F04452' : '#ADB5BD' }} filled={isLiked} />
+                        <span className="text-[12px] font-semibold" style={{ color: isLiked ? '#F04452' : '#ADB5BD' }}>{post.like_count || 0}</span>
+                      </button>
+                      <span className="flex items-center gap-1.5 text-[12px]" style={{ color: '#ADB5BD' }}>
+                        <Icon name="chat_bubble_outline" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                      </span>
+                      <span className="flex items-center gap-1.5 text-[12px]" style={{ color: '#ADB5BD' }}>
+                        <Icon name="visibility" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                        {post.view_count || 0}
+                      </span>
+                    </div>
                   </div>
-                </button>
-              ))}
+                );
+              })}
 
               {/* 더 보기 */}
               {posts.length < total && (

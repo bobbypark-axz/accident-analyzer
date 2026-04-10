@@ -31,13 +31,16 @@ export interface CommunityPost {
   analysis: any;
   title: string | null;
   summary: string;
+  description: string | null;
   fault_ratio_a: number;
   fault_ratio_b: number;
   chart_code: string | null;
   media_url: string | null;
   media_type: string | null;
   thumbnail_url: string | null;
+  photo_urls: string[] | null;
   session_token: string | null;
+  view_count: number;
   created_at: string;
 }
 
@@ -52,15 +55,19 @@ function generateTitle(summary: string): string {
 
 export async function createPost(data: {
   analysis: any;
+  description?: string;
   mediaFile?: File;
+  photos?: File[];
+  generateThumbnail?: boolean;
 }): Promise<CommunityPost | null> {
   if (!supabase) return null;
 
   let media_url: string | null = null;
   let media_type: string | null = null;
   let thumbnail_url: string | null = null;
+  const photo_urls: string[] = [];
 
-  // 미디어 업로드
+  // 메인 미디어 업로드
   if (data.mediaFile) {
     const ext = data.mediaFile.name.split('.').pop();
     const filename = `${crypto.randomUUID()}.${ext}`;
@@ -76,10 +83,26 @@ export async function createPost(data: {
     }
   }
 
+  // 추가 사진 업로드
+  if (data.photos && data.photos.length > 0) {
+    for (const photo of data.photos) {
+      const ext = photo.name.split('.').pop();
+      const filename = `${crypto.randomUUID()}.${ext}`;
+      const { error } = await supabase.storage
+        .from('community-media')
+        .upload(filename, photo, { contentType: photo.type });
+      if (!error) {
+        const { data: urlData } = supabase.storage.from('community-media').getPublicUrl(filename);
+        photo_urls.push(urlData.publicUrl);
+        if (!thumbnail_url) thumbnail_url = urlData.publicUrl;
+      }
+    }
+  }
+
   const analysis = data.analysis;
 
-  // AI 사고 이미지 생성 (썸네일 없을 때)
-  if (!thumbnail_url && analysis.summary) {
+  // AI 사고 이미지 생성 (사용자가 선택한 경우만)
+  if (data.generateThumbnail && !thumbnail_url && analysis.summary) {
     try {
       const resp = await fetch('/api/generate-image', {
         method: 'POST',
@@ -89,15 +112,13 @@ export async function createPost(data: {
       if (resp.ok) {
         const { imageBase64 } = await resp.json();
         if (imageBase64) {
-          // base64 → blob → Supabase Storage 업로드
           const byteArray = Uint8Array.from(atob(imageBase64), c => c.charCodeAt(0));
           const blob = new Blob([byteArray], { type: 'image/png' });
           const imgFilename = `${crypto.randomUUID()}.png`;
           const uploadResult = await supabase.storage
             .from('community-media')
             .upload(imgFilename, blob, { contentType: 'image/png' });
-          const uploadErr = uploadResult.error;
-          if (!uploadErr) {
+          if (!uploadResult.error) {
             const { data: urlData } = supabase.storage.from('community-media').getPublicUrl(imgFilename);
             thumbnail_url = urlData.publicUrl;
           }
@@ -105,6 +126,7 @@ export async function createPost(data: {
       }
     } catch { /* 이미지 생성 실패해도 게시물은 등록 */ }
   }
+
   const { data: post, error } = await supabase
     .from('posts')
     .insert({
@@ -112,12 +134,14 @@ export async function createPost(data: {
       analysis,
       title: generateTitle(analysis.summary || ''),
       summary: analysis.summary || '',
+      description: data.description || null,
       fault_ratio_a: analysis.ratio?.a?.percent || 50,
       fault_ratio_b: analysis.ratio?.b?.percent || 50,
       chart_code: analysis.chartCode || null,
       media_url,
       media_type,
       thumbnail_url,
+      photo_urls: photo_urls.length > 0 ? photo_urls : null,
       session_token: getSessionToken(),
     })
     .select()
@@ -127,7 +151,7 @@ export async function createPost(data: {
   return post;
 }
 
-export async function fetchPosts(page: number = 1, limit: number = 20): Promise<{ posts: CommunityPost[]; total: number }> {
+export async function fetchPosts(page: number = 1, limit: number = 20): Promise<{ posts: (CommunityPost & { like_count: number })[]; total: number }> {
   if (!supabase) return { posts: [], total: 0 };
 
   const from = (page - 1) * limit;
@@ -135,12 +159,18 @@ export async function fetchPosts(page: number = 1, limit: number = 20): Promise<
 
   const { data, error, count } = await supabase
     .from('posts')
-    .select('*', { count: 'exact' })
+    .select('*, likes(count)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
 
   if (error) { console.error('게시물 조회 실패:', error); return { posts: [], total: 0 }; }
-  return { posts: data || [], total: count || 0 };
+
+  const posts = (data || []).map((p: any) => ({
+    ...p,
+    like_count: p.likes?.[0]?.count || 0,
+  }));
+
+  return { posts, total: count || 0 };
 }
 
 export async function fetchPost(id: string): Promise<CommunityPost | null> {
@@ -206,6 +236,61 @@ export async function deleteComment(id: string): Promise<boolean> {
     .eq('id', id)
     .eq('session_token', getSessionToken());
   return !error;
+}
+
+// ── 조회수 ──
+
+export async function incrementViewCount(postId: string): Promise<number> {
+  if (!supabase) return 0;
+
+  // 1차: RPC 시도
+  const { error: rpcError } = await supabase.rpc('increment_view_count', { p_id: postId });
+  if (!rpcError) {
+    const { data } = await supabase.from('posts').select('view_count').eq('id', postId).single();
+    return data?.view_count || 0;
+  }
+  console.warn('increment_view_count RPC 실패:', rpcError.message);
+
+  // 2차: 직접 update
+  const { data: current } = await supabase.from('posts').select('view_count').eq('id', postId).single();
+  const newCount = (current?.view_count || 0) + 1;
+  const { error: updateError } = await supabase.from('posts').update({ view_count: newCount }).eq('id', postId);
+  if (updateError) {
+    console.warn('view_count update 실패 (RLS 문제일 수 있음):', updateError.message);
+  }
+  return updateError ? (current?.view_count || 0) : newCount;
+}
+
+// ── 좋아요 ──
+
+export async function toggleLike(postId: string): Promise<{ liked: boolean; count: number } | null> {
+  if (!supabase) return null;
+  const token = getSessionToken();
+
+  // RPC 시도
+  const { data, error } = await supabase.rpc('toggle_like', { p_id: postId, s_token: token });
+  if (!error && data) return data;
+
+  // fallback: 직접 처리
+  const { data: existing } = await supabase.from('likes').select('id').eq('post_id', postId).eq('session_token', token).maybeSingle();
+  if (existing) {
+    await supabase.from('likes').delete().eq('id', existing.id);
+  } else {
+    await supabase.from('likes').insert({ post_id: postId, session_token: token });
+  }
+  const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', postId);
+  return { liked: !existing, count: count || 0 };
+}
+
+export async function getLikeStatus(postId: string): Promise<{ liked: boolean; count: number }> {
+  if (!supabase) return { liked: false, count: 0 };
+
+  const [{ count }, { data: myLike }] = await Promise.all([
+    supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', postId),
+    supabase.from('likes').select('id').eq('post_id', postId).eq('session_token', getSessionToken()).maybeSingle(),
+  ]);
+
+  return { liked: !!myLike, count: count || 0 };
 }
 
 // 상대 시간 포맷

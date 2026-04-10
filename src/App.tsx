@@ -114,17 +114,89 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
   const [showFullResult, setShowFullResult] = useState(false);
   const [flaskAvailable, setFlaskAvailable] = useState<boolean | null>(null);
   const [showImageModal, setShowImageModal] = useState<string | null>(null);
-  const [inputMode, setInputMode] = useState<'wizard' | 'text'>('wizard');
+  const [inputMode, setInputMode] = useState<'wizard' | 'text'>('text');
   const [structuredData, setStructuredData] = useState<Record<string, string> | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showShareCard, setShowShareCard] = useState(false);
   const [frameIdx, setFrameIdx] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const shareCardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingAnalysis = useRef<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const toggleVoiceInput = useCallback(async () => {
+    // 녹음 중이면 중지 → Whisper로 전송
+    if (isListening && mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        setIsListening(false);
+        mediaRecorderRef.current = null;
+
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        if (audioBlob.size < 1000) return; // 너무 짧으면 무시
+
+        setIsTranscribing(true);
+        try {
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.readAsDataURL(audioBlob);
+          });
+
+          const res = await fetch('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: base64 }),
+          });
+
+          const data = await res.json();
+          if (data.text) {
+            setAccidentDetails(prev => prev ? prev + ' ' + data.text : data.text);
+          } else if (data.error) {
+            setError(data.error);
+          }
+        } catch {
+          setError('음성 변환 중 오류가 발생했습니다.');
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsListening(true);
+      trackEvent('voice_input_start');
+    } catch {
+      setError('마이크 접근이 거부되었습니다. 브라우저 설정에서 마이크를 허용해주세요.');
+    }
+  }, [isListening]);
+
+  // 컴포넌트 언마운트 시 녹음 정리
+  useEffect(() => {
+    return () => { mediaRecorderRef.current?.stop(); };
+  }, []);
 
   // Flask API 상태 확인
   useEffect(() => {
@@ -752,21 +824,49 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     ))}
                   </div>
                 )}
-                <textarea
-                  className="w-full px-4 py-3 rounded-xl min-h-[160px] text-[15px] resize-none transition-all"
-                  style={{ background: '#F9FAFB', border: '1.5px solid #E5E8EB', color: '#191F28', outline: 'none' }}
-                  onFocus={e => { e.currentTarget.style.borderColor = '#3182F6'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(49,130,246,0.12)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor = '#E5E8EB'; e.currentTarget.style.boxShadow = 'none'; }}
-                  placeholder="예시: 신호등이 있는 교차로에서 직진 중이었고, 좌회전 차량과 충돌했습니다..."
-                  value={accidentDetails}
-                  onChange={e => setAccidentDetails(e.target.value)}
-                  disabled={isLoading}
-                />
-                {accidentDetails.length > 0 && (
-                  <div className="flex justify-end mt-1 mb-1">
+                <div className="relative">
+                  <textarea
+                    className="w-full px-4 py-3 pr-12 rounded-xl min-h-[160px] text-[15px] resize-none transition-all"
+                    style={{ background: '#F9FAFB', border: `1.5px solid ${isListening ? '#3182F6' : '#E5E8EB'}`, color: '#191F28', outline: 'none', boxShadow: isListening ? '0 0 0 3px rgba(49,130,246,0.12)' : 'none' }}
+                    onFocus={e => { if (!isListening) { e.currentTarget.style.borderColor = '#3182F6'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(49,130,246,0.12)'; } }}
+                    onBlur={e => { if (!isListening) { e.currentTarget.style.borderColor = '#E5E8EB'; e.currentTarget.style.boxShadow = 'none'; } }}
+                    placeholder={isListening ? '녹음 중... 완료되면 마이크 버튼을 탭하세요' : isTranscribing ? '음성을 텍스트로 변환하고 있습니다...' : '예시: 신호등이 있는 교차로에서 직진 중이었고, 좌회전 차량과 충돌했습니다...'}
+                    value={accidentDetails}
+                    onChange={e => setAccidentDetails(e.target.value)}
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={toggleVoiceInput}
+                    disabled={isLoading || isTranscribing}
+                    className="absolute right-3 bottom-3 w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all"
+                    style={{
+                      background: isListening ? '#F04452' : isTranscribing ? '#3182F6' : '#F2F4F6',
+                      border: 'none',
+                      cursor: (isLoading || isTranscribing) ? 'not-allowed' : 'pointer',
+                      animation: isListening ? 'pulse-mic 1.5s ease-in-out infinite' : 'none',
+                    }}
+                    title={isListening ? '녹음 중지' : isTranscribing ? '변환 중...' : '음성으로 입력'}
+                  >
+                    <Icon name={isListening ? 'stop' : isTranscribing ? 'pending' : 'mic'} className="text-[18px]" style={{ color: (isListening || isTranscribing) ? '#fff' : '#6B7684' }} filled />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between mt-1 mb-1">
+                  {isListening ? (
+                    <span className="text-xs flex items-center gap-1" style={{ color: '#F04452' }}>
+                      <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#F04452', animation: 'pulse-mic 1s ease-in-out infinite' }} />
+                      녹음 중... 탭하여 완료
+                    </span>
+                  ) : isTranscribing ? (
+                    <span className="text-xs flex items-center gap-1" style={{ color: '#3182F6' }}>
+                      <Icon name="pending" className="text-[14px]" style={{ color: '#3182F6', animation: 'spin 1s linear infinite' }} filled />
+                      음성 변환 중...
+                    </span>
+                  ) : <span />}
+                  {accidentDetails.length > 0 && (
                     <span className="text-xs" style={{ color: '#ADB5BD' }}>{accidentDetails.length}자</span>
-                  </div>
-                )}
+                  )}
+                </div>
                 {/* 분석 버튼 (인라인) */}
                 <button onClick={handlePredict} disabled={!canSubmit || isLoading}
                   className="w-full flex items-center justify-center gap-2 mt-3 active:scale-[0.98] transition-all"
@@ -1097,7 +1197,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     className="flex-1 flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.97] transition-all"
                     style={{ background: '#3182F6', border: 'none', cursor: 'pointer' }}>
                     <Icon name="forum" className="text-[16px]" style={{ color: '#fff' }} />
-                    <span className="text-[13px] font-bold" style={{ color: '#fff' }}>커뮤니티에 공유</span>
+                    <span className="text-[13px] font-bold" style={{ color: '#fff' }}>커뮤니티 공유하기</span>
                   </button>
                 </div>
                 {/* 다시 분석하기 */}
@@ -1106,7 +1206,7 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                     setPrediction(null); setError(null); setShowFullResult(false);
                     setSelectedFile(null); setAccidentDetails(''); setStructuredData(null);
-                    setInputMode('wizard');
+                    setInputMode('text');
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
                     className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl active:scale-[0.98] transition-all"
