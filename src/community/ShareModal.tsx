@@ -94,7 +94,7 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
                 </div>
                 <div>
                   <p className="text-[13px] font-semibold" style={{ color: '#191F28' }}>
-                    과실비율 {analysis?.ratio?.a?.percent || 50} : {analysis?.ratio?.b?.percent || 50}
+                    과실비율 {analysis?.ratio?.a?.percent ?? 50} : {analysis?.ratio?.b?.percent ?? 50}
                   </p>
                   <p className="text-[11px]" style={{ color: '#ADB5BD' }}>{nickname}</p>
                 </div>

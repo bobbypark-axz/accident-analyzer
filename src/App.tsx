@@ -477,8 +477,8 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
             if (!parsed.chartCode && parsed.applicable_chart) parsed.chartCode = parsed.applicable_chart;
             if (!parsed.chartCode && parsed.chart_code) parsed.chartCode = parsed.chart_code;
             if (parsed.summary && parsed.ratio) {
-              if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
-              if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
+              if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) ?? 50;
+              if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) ?? 50;
               const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
               if (sum !== 100 && sum > 0) {
                 if (parsed.ratio.a.percent === 100) parsed.ratio.b.percent = 0;
@@ -555,8 +555,8 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
           if (!parsed.chartCode && parsed.applicable_chart) parsed.chartCode = parsed.applicable_chart;
           if (!parsed.chartCode && parsed.chart_code) parsed.chartCode = parsed.chart_code;
           if (parsed.summary && parsed.ratio) {
-            if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
-            if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
+            if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) ?? 50;
+            if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) ?? 50;
             const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
             if (sum !== 100 && sum > 0) {
               if (parsed.ratio.a.percent === 100) parsed.ratio.b.percent = 0;
