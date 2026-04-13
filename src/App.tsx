@@ -481,8 +481,11 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
               if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
               const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
               if (sum !== 100 && sum > 0) {
-                parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100);
-                parsed.ratio.b.percent = 100 - parsed.ratio.a.percent;
+                if (parsed.ratio.a.percent === 100) parsed.ratio.b.percent = 0;
+                else if (parsed.ratio.b.percent === 100) parsed.ratio.a.percent = 0;
+                else if (parsed.ratio.a.percent === 0) parsed.ratio.b.percent = 100;
+                else if (parsed.ratio.b.percent === 0) parsed.ratio.a.percent = 100;
+                else { parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100); parsed.ratio.b.percent = 100 - parsed.ratio.a.percent; }
               }
               videoAnalysis = parsed;
             }
@@ -559,8 +562,11 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
             if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
             const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
             if (sum !== 100 && sum > 0) {
-              parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100);
-              parsed.ratio.b.percent = 100 - parsed.ratio.a.percent;
+              if (parsed.ratio.a.percent === 100) parsed.ratio.b.percent = 0;
+              else if (parsed.ratio.b.percent === 100) parsed.ratio.a.percent = 0;
+              else if (parsed.ratio.a.percent === 0) parsed.ratio.b.percent = 100;
+              else if (parsed.ratio.b.percent === 0) parsed.ratio.a.percent = 100;
+              else { parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100); parsed.ratio.b.percent = 100 - parsed.ratio.a.percent; }
             }
             analysis = parsed;
           }
