@@ -13,7 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
-    const modelId = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
+    const modelId = (process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6').trim();
     if (!apiKey) return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
 
     let body = req.body;
