@@ -496,8 +496,6 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
         return;
       }
 
-      // 기본 분석: OpenAI API
-      const model = (import.meta.env.VITE_MODEL_TO_USE || 'gpt-4o-mini').trim();
       const maxTokens = 3072;
 
       let documentsContext = '';
@@ -525,7 +523,6 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: `다음 교통사고 상황을 분석하여 과실비율을 예측해주세요:\n\n${accidentDetails}${documentsContext}` },

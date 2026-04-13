@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-sonnet-4-6',
         max_tokens: maxTokens,
         system: systemMsg,
         messages: userMsgs.map((m: any) => ({ role: m.role, content: m.content })),
@@ -73,8 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Langfuse 로깅
     if (trace && lf) {
       trace.generation({
-        name: 'claude-haiku-4-5-20251001',
-        model: 'claude-haiku-4-5-20251001',
+        name: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-4-6',
         modelParameters: { max_tokens: maxTokens },
         input: { system: systemMsg, user: userInput },
         output: outputText,
