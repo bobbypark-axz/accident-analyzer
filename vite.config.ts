@@ -139,10 +139,11 @@ export default defineConfig(({ mode }) => {
               }
               const trace = langfuseClient?.trace({ name: 'accident-analysis', input: { user: userInput.substring(0, 500) } });
 
+              const modelId = env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
               const response = await fetch('https://api.anthropic.com/v1/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-                body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: maxTokens, system: systemMsg, messages: userMsgs.map((m: any) => ({ role: m.role, content: m.content })) }),
+                body: JSON.stringify({ model: modelId, max_tokens: maxTokens, system: systemMsg, messages: userMsgs.map((m: any) => ({ role: m.role, content: m.content })) }),
               });
 
               const data = await response.json();
@@ -155,7 +156,7 @@ export default defineConfig(({ mode }) => {
               const outputText = data.content?.[0]?.text || '';
               // Langfuse 로깅
               if (trace) {
-                trace.generation({ name: 'claude-sonnet-4-6', model: 'claude-sonnet-4-6', input: { user: userInput.substring(0, 500) }, output: outputText.substring(0, 1000), usage: { input: data.usage?.input_tokens, output: data.usage?.output_tokens }, metadata: { durationMs: Date.now() - startTime } });
+                trace.generation({ name: modelId, model: modelId, input: { user: userInput.substring(0, 500) }, output: outputText.substring(0, 1000), usage: { input: data.usage?.input_tokens, output: data.usage?.output_tokens }, metadata: { durationMs: Date.now() - startTime } });
                 trace.update({ output: { text: outputText.substring(0, 500) } });
                 langfuseClient?.flushAsync?.().catch(() => {});
               }

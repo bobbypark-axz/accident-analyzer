@@ -13,6 +13,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    const modelId = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6';
     if (!apiKey) return res.status(500).json({ error: 'API 키가 설정되지 않았습니다.' });
 
     let body = req.body;
@@ -51,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: modelId,
         max_tokens: maxTokens,
         system: systemMsg,
         messages: userMsgs.map((m: any) => ({ role: m.role, content: m.content })),
@@ -73,8 +74,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Langfuse 로깅
     if (trace && lf) {
       trace.generation({
-        name: 'claude-sonnet-4-6',
-        model: 'claude-sonnet-4-6',
+        name: modelId,
+        model: modelId,
         modelParameters: { max_tokens: maxTokens },
         input: { system: systemMsg, user: userInput },
         output: outputText,
