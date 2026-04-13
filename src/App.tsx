@@ -74,7 +74,13 @@ chartCode (사고에 가장 맞는 코드 선택):
 [이륜차] 차61-1:정체구간직진, 차61-2:교차로직진vs좌회전, 차61-3:교차로직진vs우회전
 해당 도표가 없으면 가장 유사한 것을 선택.
 
-규칙: chartCode는 반드시 위 목록에서 선택. laws 2~3개, cases 1~2개. ratio합=100. 실제 법규기반. 한국어. A는 항상 본인, B는 항상 상대방.`;
+과실비율 기준 (반드시 준수):
+- 추돌(뒤에서 들이받음): 추돌한 차량 100% (피추돌 차량 0%). 신호대기·정차 중 추돌당한 경우 피해차량 과실 0.
+- 신호위반: 신호위반 차량 100%, 신호준수 차량 0%.
+- 중앙선 침범: 침범 차량 100%.
+- 과실이 한쪽에만 있을 때 percent를 0 또는 100으로 설정해도 됩니다.
+
+규칙: chartCode는 반드시 위 목록에서 선택. laws 2~3개, cases 1~2개. ratio.a.percent + ratio.b.percent = 반드시 정확히 100. 실제 법규기반. 한국어. A는 항상 본인, B는 항상 상대방. cases의 ruling 과실비율과 최종 ratio가 일관되어야 합니다.`;
 
 const accidentTemplates = [
   { label: '교차로 사고', icon: 'signpost', text: '[사고 장소] 신호등이 있는 사거리 교차로\n[내 차량] 직진 차로에서 초록불에 직진 중\n[상대 차량] 맞은편에서 비보호 좌회전 시도\n[충돌 부위] 내 차량 우측 앞범퍼 / 상대 차량 좌측 측면' },
@@ -473,6 +479,11 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
             if (parsed.summary && parsed.ratio) {
               if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
               if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
+              const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
+              if (sum !== 100 && sum > 0) {
+                parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100);
+                parsed.ratio.b.percent = 100 - parsed.ratio.a.percent;
+              }
               videoAnalysis = parsed;
             }
           }
@@ -546,6 +557,11 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
           if (parsed.summary && parsed.ratio) {
             if (parsed.ratio.a) parsed.ratio.a.percent = Number(parsed.ratio.a.percent) || 50;
             if (parsed.ratio.b) parsed.ratio.b.percent = Number(parsed.ratio.b.percent) || 50;
+            const sum = parsed.ratio.a.percent + parsed.ratio.b.percent;
+            if (sum !== 100 && sum > 0) {
+              parsed.ratio.a.percent = Math.round((parsed.ratio.a.percent / sum) * 100);
+              parsed.ratio.b.percent = 100 - parsed.ratio.a.percent;
+            }
             analysis = parsed;
           }
         }
