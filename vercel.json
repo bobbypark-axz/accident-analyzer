@@ -31,6 +31,10 @@
       "destination": "/api/$1"
     },
     {
+      "source": "/share/:id",
+      "destination": "/api/og-preview?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

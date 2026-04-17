@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "embed-pdfs": "tsx scripts/embed-pdfs.ts"
+    "embed-pdfs": "tsx scripts/embed-pdfs.ts",
+    "seed-community": "tsx scripts/seed-community.ts",
+    "seed-comments": "tsx scripts/seed-comments.ts",
+    "fix-titles": "tsx scripts/fix-titles.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

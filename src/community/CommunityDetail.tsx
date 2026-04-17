@@ -66,11 +66,11 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
   };
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+    const shareUrl = `${window.location.origin}/share/${post.id}`;
     const shareText = `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b} — ${post.description || '사고 분석 결과'}`;
     if (navigator.share) {
       try {
-        await navigator.share({ title: '사고 분석 결과', text: shareText, url: shareUrl });
+        await navigator.share({ title: post.title || '사고 분석 결과', text: shareText, url: shareUrl });
         trackEvent('community_share_native', { post_id: post.id });
         return;
       } catch {}
@@ -119,10 +119,15 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
 
           {/* 게시물 카드 (글 + 미디어 + 반응) */}
           <section className="bg-white rounded-2xl overflow-hidden mb-3">
-            {/* 작성자 글 */}
-            {post.description && (
+            {/* 제목 + 작성자 글 */}
+            {(post.title || post.description) && (
               <div className="px-5 pt-4 pb-3">
-                <p className="text-[15px] leading-[1.8]" style={{ color: '#191F28' }}>{post.description}</p>
+                {post.title && (
+                  <h2 className="text-[18px] font-bold mb-2 leading-[1.4]" style={{ color: '#191F28' }}>{post.title}</h2>
+                )}
+                {post.description && (
+                  <p className="text-[15px] leading-[1.8]" style={{ color: '#4E5968' }}>{post.description}</p>
+                )}
               </div>
             )}
 

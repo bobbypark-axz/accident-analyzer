@@ -7,6 +7,49 @@ function Icon({ name, className = '', filled = false, style }: { name: string; c
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
 }
 
+// 썸네일 없는 게시물용 placeholder — chartCode 카테고리별 그라데이션 + 아이콘
+function ChartPlaceholder({ chartCode }: { chartCode: string | null }) {
+  const meta = getPlaceholderMeta(chartCode);
+  return (
+    <div
+      className="relative w-full flex items-center justify-center"
+      style={{
+        height: 140,
+        borderRadius: 12,
+        border: '1px solid #E5E8EB',
+        background: meta.bg,
+      }}
+    >
+      <Icon name={meta.icon} className="text-[48px]" style={{ color: 'rgba(255,255,255,0.85)' }} filled />
+      <span className="absolute bottom-2 right-2 text-[10px] font-bold px-2 py-1 rounded-md"
+        style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', backdropFilter: 'blur(4px)' }}>
+        {meta.label}
+      </span>
+    </div>
+  );
+}
+
+function getPlaceholderMeta(chartCode: string | null): { icon: string; label: string; bg: string } {
+  if (!chartCode) return { icon: 'car_crash', label: '사고 분석', bg: 'linear-gradient(135deg, #6B7684 0%, #8B95A1 100%)' };
+  // 보행자
+  if (chartCode === '차5-1' || /^차5[12]-/.test(chartCode)) return { icon: 'directions_walk', label: '보행자 사고', bg: 'linear-gradient(135deg, #10B981 0%, #34D399 100%)' };
+  // 추돌
+  if (chartCode === '차41-1' || chartCode === '차42-1') return { icon: 'rear_collision', label: '추돌 사고', bg: 'linear-gradient(135deg, #F04452 0%, #FB7185 100%)' };
+  // 차선변경/끼어들기
+  if (/^차(42|43)-/.test(chartCode)) return { icon: 'swap_horiz', label: '차로변경 사고', bg: 'linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)' };
+  // 유턴
+  if (/^차16-/.test(chartCode)) return { icon: 'u_turn_left', label: '유턴 사고', bg: 'linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%)' };
+  // 주차장/도로 외
+  if (/^차(31|44)-/.test(chartCode)) return { icon: 'local_parking', label: '주차장 사고', bg: 'linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%)' };
+  // T자
+  if (/^차(20|21)-/.test(chartCode)) return { icon: 'fork_right', label: 'T자 교차로', bg: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)' };
+  // 비신호 교차로
+  if (/^차(1[0-7])-/.test(chartCode)) return { icon: 'traffic', label: '비신호 교차로', bg: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' };
+  // 신호 교차로
+  if (/^차[1-9]-/.test(chartCode)) return { icon: 'traffic', label: '신호 교차로', bg: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)' };
+  return { icon: 'car_crash', label: '사고 분석', bg: 'linear-gradient(135deg, #6B7684 0%, #8B95A1 100%)' };
+}
+
 export default function CommunityPage({ onHideTabBar }: { initialPostId?: string | null; onHideTabBar?: (hide: boolean) => void }) {
   // URL에서 직접 ?post= 파라미터 읽기 (공유 텍스트가 붙을 수 있으므로 UUID만 추출)
   const [deepLinkPostId] = useState(() => {
@@ -15,7 +58,7 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
     const match = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
     return match ? match[0] : null;
   });
-  const [posts, setPosts] = useState<(CommunityPost & { like_count: number })[]>([]);
+  const [posts, setPosts] = useState<(CommunityPost & { like_count: number; comment_count: number })[]>([]);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -147,12 +190,21 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                       )}
                     </div>
 
-                    {/* 본문 + 이미지 */}
+                    {/* 제목 + 본문 + 이미지 */}
                     <div className="px-4 pb-3">
-                      {post.description && (
-                        <p className="text-[14px] leading-[1.7] mb-2.5" style={{ color: '#191F28' }}>{post.description}</p>
+                      {post.title && (
+                        <h3 className="text-[16px] font-bold mb-1.5 leading-[1.4]" style={{ color: '#191F28' }}>{post.title}</h3>
                       )}
-                      {post.thumbnail_url && (
+                      {post.description && (
+                        <p className="text-[14px] leading-[1.7] mb-2.5" style={{
+                          color: '#4E5968',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>{post.description}</p>
+                      )}
+                      {post.thumbnail_url ? (
                         <div className="relative">
                           <img src={post.thumbnail_url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
                           {post.media_type === 'video' && (
@@ -168,6 +220,8 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                             </div>
                           )}
                         </div>
+                      ) : (
+                        <ChartPlaceholder chartCode={post.chart_code} />
                       )}
                     </div>
 
@@ -197,8 +251,9 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                         <Icon name="thumb_up" className="text-[18px]" style={{ color: isLiked ? '#3182F6' : '#ADB5BD' }} filled={isLiked} />
                         <span className="text-[12px] font-semibold" style={{ color: isLiked ? '#3182F6' : '#ADB5BD' }}>{post.like_count || 0}</span>
                       </button>
-                      <span className="flex items-center gap-1.5 text-[12px]" style={{ color: '#ADB5BD' }}>
+                      <span className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: '#ADB5BD' }}>
                         <Icon name="chat_bubble_outline" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                        {post.comment_count || 0}
                       </span>
                       <span className="flex items-center gap-1.5 text-[12px]" style={{ color: '#ADB5BD' }}>
                         <Icon name="visibility" className="text-[18px]" style={{ color: '#ADB5BD' }} />
@@ -207,9 +262,9 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+                          const url = `${window.location.origin}/share/${post.id}`;
                           if (navigator.share) {
-                            navigator.share({ title: '사고 분석 결과', text: `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b}`, url }).catch(() => {});
+                            navigator.share({ title: post.title || '사고 분석 결과', text: `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b}`, url }).catch(() => {});
                           } else {
                             navigator.clipboard.writeText(url).catch(() => {});
                           }

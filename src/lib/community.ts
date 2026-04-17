@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { generateTitle } from './chart-titles';
 
 // 익명 닉네임 생성
 const ADJECTIVES = ['용감한', '신중한', '침착한', '빠른', '현명한', '든든한', '안전한', '꼼꼼한'];
@@ -42,15 +43,6 @@ export interface CommunityPost {
   session_token: string | null;
   view_count: number;
   created_at: string;
-}
-
-function generateTitle(summary: string): string {
-  if (!summary) return '사고 분석';
-  const match = summary.match(/^(.+?)[.。]/) || summary.match(/^(.+?(?:입니다|습니다|었습니다|됩니다))/);
-  if (match && match[1].length <= 35) return match[1];
-  const cut = summary.slice(0, 30);
-  const lastSpace = cut.lastIndexOf(' ');
-  return lastSpace > 15 ? cut.slice(0, lastSpace) : cut;
 }
 
 export async function createPost(data: {
@@ -132,7 +124,7 @@ export async function createPost(data: {
     .insert({
       nickname: getNickname(),
       analysis,
-      title: generateTitle(analysis.summary || ''),
+      title: generateTitle(analysis.chartCode, analysis.summary || ''),
       summary: analysis.summary || '',
       description: data.description || null,
       fault_ratio_a: analysis.ratio?.a?.percent ?? 50,
@@ -151,7 +143,7 @@ export async function createPost(data: {
   return post;
 }
 
-export async function fetchPosts(page: number = 1, limit: number = 20): Promise<{ posts: (CommunityPost & { like_count: number })[]; total: number }> {
+export async function fetchPosts(page: number = 1, limit: number = 20): Promise<{ posts: (CommunityPost & { like_count: number; comment_count: number })[]; total: number }> {
   if (!supabase) return { posts: [], total: 0 };
 
   const from = (page - 1) * limit;
@@ -159,7 +151,7 @@ export async function fetchPosts(page: number = 1, limit: number = 20): Promise<
 
   const { data, error, count } = await supabase
     .from('posts')
-    .select('*, likes(count)', { count: 'exact' })
+    .select('*, likes(count), comments(count)', { count: 'exact' })
     .order('created_at', { ascending: false })
     .range(from, to);
 
@@ -168,6 +160,7 @@ export async function fetchPosts(page: number = 1, limit: number = 20): Promise<
   const posts = (data || []).map((p: any) => ({
     ...p,
     like_count: p.likes?.[0]?.count || 0,
+    comment_count: p.comments?.[0]?.count || 0,
   }));
 
   return { posts, total: count || 0 };
