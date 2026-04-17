@@ -162,7 +162,7 @@ const faqItems = [
   { question: '개인정보는 안전한가요?', answer: '입력하신 사고 상황 정보는 과실비율 예측에만 사용되며, 별도로 저장되지 않습니다.' },
 ];
 
-export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?: number; onNavigateToCommunity?: () => void } = {}) {
+export function App({ bottomOffset = 0, onNavigateToCommunity, onHideTabBar }: { bottomOffset?: number; onNavigateToCommunity?: () => void; onHideTabBar?: (hide: boolean) => void } = {}) {
   const [accidentDetails, setAccidentDetails] = useState('');
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -183,6 +183,10 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
   const [showShareCard, setShowShareCard] = useState(false);
   const [frameIdx, setFrameIdx] = useState(0);
   const [showShareModal, setShowShareModal] = useState(false);
+  useEffect(() => {
+    onHideTabBar?.(showShareModal);
+    return () => { onHideTabBar?.(false); };
+  }, [showShareModal]);
   const [isListening, setIsListening] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
 

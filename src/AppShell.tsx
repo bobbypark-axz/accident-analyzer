@@ -23,7 +23,7 @@ export default function AppShell() {
   return (
     <div>
       <div style={{ display: activeTab === 'analysis' ? 'block' : 'none' }}>
-        <App bottomOffset={100} onNavigateToCommunity={goToCommunity} />
+        <App bottomOffset={100} onNavigateToCommunity={goToCommunity} onHideTabBar={setHideTabBar} />
       </div>
       <div style={{ display: activeTab === 'community' ? 'block' : 'none' }}>
         <CommunityPage key={refreshKey} onHideTabBar={setHideTabBar} />
