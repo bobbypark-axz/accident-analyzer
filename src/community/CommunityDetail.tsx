@@ -6,7 +6,7 @@ function Icon({ name, className = '', filled = false, style }: { name: string; c
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
 }
 
-export default function CommunityDetail({ post, onBack }: { post: CommunityPost; onBack: () => void }) {
+export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: CommunityPost; onBack: () => void; onHideTabBar?: (hide: boolean) => void }) {
   const a = post.analysis;
   const isOwner = post.session_token === getSessionToken();
   const sessionToken = getSessionToken();
@@ -18,12 +18,19 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
   const [likeCount, setLikeCount] = useState(0);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const [showComments, setShowComments] = useState(false);
+  const [sharecopied, setShareCopied] = useState(false);
 
   useEffect(() => {
     fetchComments(post.id).then(setComments);
     incrementViewCount(post.id).then(count => setViewCount(count));
     getLikeStatus(post.id).then(s => { setLiked(s.liked); setLikeCount(s.count); });
   }, [post.id]);
+
+  // 댓글창 열릴 때 하단 탭바 숨기기
+  useEffect(() => {
+    onHideTabBar?.(showComments);
+    return () => { onHideTabBar?.(false); };
+  }, [showComments]);
 
   const handleToggleLike = async () => {
     const result = await toggleLike(post.id);
@@ -56,6 +63,32 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
     const ok = await deletePost(post.id);
     if (ok) onBack();
     else alert('삭제에 실패했습니다.');
+  };
+
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+    const shareText = `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b} — ${post.description || '사고 분석 결과'}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: '사고 분석 결과', text: shareText, url: shareUrl });
+        trackEvent('community_share_native', { post_id: post.id });
+        return;
+      } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = shareUrl;
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    trackEvent('community_share_copy', { post_id: post.id });
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
   };
 
   const latestComment = comments.length > 0 ? comments[comments.length - 1] : null;
@@ -122,9 +155,9 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: '1px solid #F2F4F6' }}>
               <button onClick={handleToggleLike}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl active:scale-95 transition-all"
-                style={{ background: liked ? '#FFF0F0' : '#F2F4F6', border: 'none', cursor: 'pointer' }}>
-                <Icon name={liked ? 'favorite' : 'favorite_border'} className="text-[18px]" style={{ color: liked ? '#F04452' : '#ADB5BD' }} filled={liked} />
-                <span className="text-[13px] font-bold" style={{ color: liked ? '#F04452' : '#6B7684' }}>{likeCount}</span>
+                style={{ background: liked ? '#EBF4FF' : '#F2F4F6', border: 'none', cursor: 'pointer' }}>
+                <Icon name="thumb_up" className="text-[18px]" style={{ color: liked ? '#3182F6' : '#ADB5BD' }} filled={liked} />
+                <span className="text-[13px] font-bold" style={{ color: liked ? '#3182F6' : '#6B7684' }}>{likeCount}</span>
               </button>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
@@ -136,6 +169,12 @@ export default function CommunityDetail({ post, onBack }: { post: CommunityPost;
                   style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                   <Icon name="chat_bubble_outline" className="text-[16px]" style={{ color: '#ADB5BD' }} />
                   <span className="text-[12px]" style={{ color: '#ADB5BD' }}>{comments.length}</span>
+                </button>
+                <button onClick={handleShare}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <Icon name={sharecopied ? 'check' : 'share'} className="text-[16px]" style={{ color: sharecopied ? '#22C55E' : '#ADB5BD' }} />
+                  {sharecopied && <span className="text-[11px] font-semibold" style={{ color: '#22C55E' }}>복사됨</span>}
                 </button>
               </div>
             </div>

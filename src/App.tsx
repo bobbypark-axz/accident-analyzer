@@ -915,22 +915,24 @@ export function App({ bottomOffset = 0, onNavigateToCommunity }: { bottomOffset?
                     type="button"
                     onClick={toggleVoiceInput}
                     disabled={isLoading || isTranscribing}
-                    className="absolute right-3 bottom-3 w-9 h-9 flex items-center justify-center rounded-full active:scale-90 transition-all"
+                    className="absolute right-3 bottom-3 w-10 h-10 flex items-center justify-center rounded-full active:scale-90 transition-all"
                     style={{
                       background: isListening ? '#F04452' : isTranscribing ? '#3182F6' : '#F2F4F6',
-                      border: 'none',
+                      border: isListening ? '2px solid rgba(240,68,82,0.3)' : 'none',
                       cursor: (isLoading || isTranscribing) ? 'not-allowed' : 'pointer',
                       animation: isListening ? 'pulse-mic 1.5s ease-in-out infinite' : 'none',
                     }}
                     title={isListening ? '녹음 중지' : isTranscribing ? '변환 중...' : '음성으로 입력'}
                   >
-                    <Icon name={isListening ? 'stop' : isTranscribing ? 'pending' : 'mic'} className="text-[18px]" style={{ color: (isListening || isTranscribing) ? '#fff' : '#6B7684' }} filled />
+                    <Icon name={isListening ? 'graphic_eq' : isTranscribing ? 'pending' : 'keyboard_voice'} className="text-[20px]" style={{ color: (isListening || isTranscribing) ? '#fff' : '#6B7684' }} filled />
                   </button>
                 </div>
                 <div className="flex items-center justify-between mt-1 mb-1">
                   {isListening ? (
-                    <span className="text-xs flex items-center gap-1" style={{ color: '#F04452' }}>
-                      <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: '#F04452', animation: 'pulse-mic 1s ease-in-out infinite' }} />
+                    <span className="text-xs flex items-center gap-2" style={{ color: '#F04452' }}>
+                      <span className="voice-wave">
+                        <span /><span /><span /><span /><span />
+                      </span>
                       녹음 중... 탭하여 완료
                     </span>
                   ) : isTranscribing ? (

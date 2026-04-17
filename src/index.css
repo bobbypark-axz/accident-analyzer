@@ -183,7 +183,32 @@ textarea:focus {
 /* 마이크 펄스 애니메이션 */
 @keyframes pulse-mic {
   0%, 100% { box-shadow: 0 0 0 0 rgba(240, 68, 82, 0.4); }
-  50% { box-shadow: 0 0 0 8px rgba(240, 68, 82, 0); }
+  50% { box-shadow: 0 0 0 10px rgba(240, 68, 82, 0); }
+}
+
+/* 음성 녹음 사운드웨이브 애니메이션 */
+.voice-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+}
+.voice-wave span {
+  display: inline-block;
+  width: 3px;
+  border-radius: 3px;
+  background: #F04452;
+  animation: voice-wave-bar 1s ease-in-out infinite;
+}
+.voice-wave span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.voice-wave span:nth-child(2) { height: 12px; animation-delay: 0.15s; }
+.voice-wave span:nth-child(3) { height: 18px; animation-delay: 0.3s; }
+.voice-wave span:nth-child(4) { height: 12px; animation-delay: 0.45s; }
+.voice-wave span:nth-child(5) { height: 6px; animation-delay: 0.6s; }
+
+@keyframes voice-wave-bar {
+  0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+  50% { transform: scaleY(1); opacity: 1; }
 }
 
 @keyframes spin {

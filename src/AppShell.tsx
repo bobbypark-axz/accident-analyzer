@@ -4,8 +4,11 @@ import CommunityPage from './community/CommunityPage';
 import { trackEvent } from './lib/analytics';
 
 export default function AppShell() {
-  const [activeTab, setActiveTab] = useState<'analysis' | 'community'>('analysis');
+  // URL에 ?post=<id> 있으면 커뮤니티로 바로 진입
+  const [initialPostId] = useState(() => new URLSearchParams(window.location.search).get('post'));
+  const [activeTab, setActiveTab] = useState<'analysis' | 'community'>(initialPostId ? 'community' : 'analysis');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [hideTabBar, setHideTabBar] = useState(false);
 
   const goToCommunity = () => {
     setRefreshKey(k => k + 1);
@@ -23,26 +26,28 @@ export default function AppShell() {
         <App bottomOffset={100} onNavigateToCommunity={goToCommunity} />
       </div>
       <div style={{ display: activeTab === 'community' ? 'block' : 'none' }}>
-        <CommunityPage key={refreshKey} />
+        <CommunityPage key={refreshKey} onHideTabBar={setHideTabBar} />
       </div>
 
       {/* 플로팅 캡슐 탭바 */}
       <div style={{
         position: 'fixed',
-        bottom: 'max(env(safe-area-inset-bottom), 16px)',
+        bottom: 'max(env(safe-area-inset-bottom), 20px)',
         left: '50%',
-        transform: 'translateX(-50%)',
+        transform: hideTabBar ? 'translateX(-50%) translateY(100px)' : 'translateX(-50%)',
         zIndex: 50,
+        transition: 'transform 0.3s ease',
+        pointerEvents: hideTabBar ? 'none' : 'auto',
       }}>
         <div style={{
           display: 'flex',
-          gap: 3,
-          padding: 3,
-          borderRadius: 20,
+          gap: 4,
+          padding: 5,
+          borderRadius: 28,
           background: 'linear-gradient(135deg, #1E3A5F 0%, #1a2d4a 100%)',
           backdropFilter: 'saturate(180%) blur(20px)',
           WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-          boxShadow: '0 4px 24px rgba(30,58,95,0.35), 0 0 0 0.5px rgba(49,130,246,0.15) inset',
+          boxShadow: '0 8px 32px rgba(30,58,95,0.4), 0 0 0 0.5px rgba(49,130,246,0.2) inset',
         }}>
           {tabs.map(tab => {
             const isActive = activeTab === tab.key;
@@ -50,9 +55,9 @@ export default function AppShell() {
               <button key={tab.key}
                 onClick={() => { trackEvent('tab_switch', { tab: tab.key }); setActiveTab(tab.key); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '8px 16px',
-                  borderRadius: 17,
+                  display: 'flex', alignItems: 'center', gap: 7,
+                  padding: '12px 24px',
+                  borderRadius: 22,
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? '#3182F6' : 'transparent',
@@ -60,10 +65,10 @@ export default function AppShell() {
                   WebkitTapHighlightColor: 'transparent',
                 }}>
                 <span className={`material-symbols-rounded ${isActive ? 'icon-filled' : ''}`}
-                  style={{ fontSize: 18, color: isActive ? '#fff' : 'rgba(255,255,255,0.35)', transition: 'color 0.25s' }}>
+                  style={{ fontSize: 22, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'color 0.25s' }}>
                   {tab.icon}
                 </span>
-                <span style={{ fontSize: 12, fontWeight: isActive ? 600 : 400, color: isActive ? '#fff' : 'rgba(255,255,255,0.35)', letterSpacing: -0.3, transition: 'all 0.25s' }}>
+                <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', letterSpacing: -0.3, transition: 'all 0.25s' }}>
                   {tab.label}
                 </span>
               </button>

@@ -10,3 +10,4 @@ __pycache__/
 .claude/
 *.pt
 .vercel
+API_KEYS.md

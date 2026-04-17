@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchPosts, timeAgo, toggleLike, getSessionToken, type CommunityPost } from '../lib/community';
+import { fetchPosts, fetchPost, timeAgo, toggleLike, getSessionToken, type CommunityPost } from '../lib/community';
 import CommunityDetail from './CommunityDetail';
 import { trackEvent } from '../lib/analytics';
 
@@ -7,13 +7,37 @@ function Icon({ name, className = '', filled = false, style }: { name: string; c
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
 }
 
-export default function CommunityPage() {
+export default function CommunityPage({ onHideTabBar }: { initialPostId?: string | null; onHideTabBar?: (hide: boolean) => void }) {
+  // URL에서 직접 ?post= 파라미터 읽기 (공유 텍스트가 붙을 수 있으므로 UUID만 추출)
+  const [deepLinkPostId] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('post');
+    if (!raw) return null;
+    const match = raw.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+    return match ? match[0] : null;
+  });
   const [posts, setPosts] = useState<(CommunityPost & { like_count: number })[]>([]);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
+  const [deepLinkLoading, setDeepLinkLoading] = useState(!!deepLinkPostId);
+
+  // 딥링크: ?post=<id> 로 진입 시 해당 게시물 바로 열기
+  useEffect(() => {
+    if (!deepLinkPostId) return;
+    console.log('[딥링크] 게시물 로드 시도:', deepLinkPostId);
+    fetchPost(deepLinkPostId).then(post => {
+      console.log('[딥링크] 결과:', post ? '성공' : '실패 (null)');
+      if (post) {
+        setSelectedPost(post);
+      }
+      setDeepLinkLoading(false);
+    }).catch(err => {
+      console.error('[딥링크] 에러:', err);
+      setDeepLinkLoading(false);
+    });
+  }, [deepLinkPostId]);
 
   useEffect(() => {
     loadPosts();
@@ -53,8 +77,17 @@ export default function CommunityPage() {
     ));
   }, []);
 
+  if (deepLinkLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: '#F4F4F4' }}>
+        <div className="w-8 h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin mb-3" />
+        <p className="text-[13px]" style={{ color: '#ADB5BD' }}>게시물 불러오는 중...</p>
+      </div>
+    );
+  }
+
   if (selectedPost) {
-    return <CommunityDetail post={selectedPost} onBack={() => { setSelectedPost(null); setPage(1); loadPosts(); }} />;
+    return <CommunityDetail post={selectedPost} onBack={() => { setSelectedPost(null); setPage(1); loadPosts(); }} onHideTabBar={onHideTabBar} />;
   }
 
   return (
@@ -161,8 +194,8 @@ export default function CommunityPage() {
                         className="flex items-center gap-1.5 active:scale-90 transition-all"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        <Icon name={isLiked ? 'favorite' : 'favorite_border'} className="text-[18px]" style={{ color: isLiked ? '#F04452' : '#ADB5BD' }} filled={isLiked} />
-                        <span className="text-[12px] font-semibold" style={{ color: isLiked ? '#F04452' : '#ADB5BD' }}>{post.like_count || 0}</span>
+                        <Icon name="thumb_up" className="text-[18px]" style={{ color: isLiked ? '#3182F6' : '#ADB5BD' }} filled={isLiked} />
+                        <span className="text-[12px] font-semibold" style={{ color: isLiked ? '#3182F6' : '#ADB5BD' }}>{post.like_count || 0}</span>
                       </button>
                       <span className="flex items-center gap-1.5 text-[12px]" style={{ color: '#ADB5BD' }}>
                         <Icon name="chat_bubble_outline" className="text-[18px]" style={{ color: '#ADB5BD' }} />
@@ -171,6 +204,22 @@ export default function CommunityPage() {
                         <Icon name="visibility" className="text-[18px]" style={{ color: '#ADB5BD' }} />
                         {post.view_count || 0}
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const url = `${window.location.origin}${window.location.pathname}?post=${post.id}`;
+                          if (navigator.share) {
+                            navigator.share({ title: '사고 분석 결과', text: `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b}`, url }).catch(() => {});
+                          } else {
+                            navigator.clipboard.writeText(url).catch(() => {});
+                          }
+                          trackEvent('community_share', { post_id: post.id });
+                        }}
+                        className="flex items-center gap-1.5 active:scale-90 transition-all"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        <Icon name="share" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                      </button>
                     </div>
                   </div>
                 );

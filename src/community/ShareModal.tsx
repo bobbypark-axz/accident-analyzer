@@ -179,23 +179,7 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
               </button>
             )}
 
-            {/* AI 이미지 생성 옵션 (미디어와 사진 모두 없을 때만) */}
-            {!mediaFile && photos.length === 0 && (
-              <button
-                onClick={() => setGenerateImage(!generateImage)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl mb-3 active:scale-[0.98] transition-all"
-                style={{ background: generateImage ? '#FFF8F0' : '#F2F4F6', border: 'none', cursor: 'pointer' }}
-              >
-                <Icon name={generateImage ? 'check_box' : 'check_box_outline_blank'}
-                  className="text-[20px]" style={{ color: generateImage ? '#F97316' : '#ADB5BD' }} />
-                <div className="text-left">
-                  <p className="text-[13px] font-semibold" style={{ color: '#333D4B' }}>
-                    AI 사고 이미지 자동 생성
-                  </p>
-                  <p className="text-[11px]" style={{ color: '#8B95A1' }}>사진이 없으면 AI가 사고 상황 이미지를 만들어줍니다</p>
-                </div>
-              </button>
-            )}
+            {/* AI 이미지 생성 옵션 — 품질 개선 전까지 숨김 */}
 
             {/* 안내 */}
             <div className="flex items-start gap-2 mb-5 px-1">
