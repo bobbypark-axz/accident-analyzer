@@ -174,17 +174,35 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                       {(() => {
                         const items = getMediaItems(post);
                         if (!post.thumbnail_url && items.length === 0) return null;
+                        const main = items[0];
                         const videoCount = items.filter(m => m.type === 'video').length;
                         const extraCount = items.length - 1;
+                        const isVideoMain = main?.type === 'video';
                         return (
-                          <div className="relative">
-                            <img src={post.thumbnail_url || items[0]?.thumbnail || items[0]?.url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
-                            {videoCount > 0 && (
-                              <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                                <Icon name="play_arrow" className="text-[14px]" style={{ color: '#fff' }} filled />
-                                <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>
-                                  {videoCount > 1 ? `영상 ${videoCount}` : '영상'}
-                                </span>
+                          <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16 / 9', borderRadius: 12, border: '1px solid #E5E8EB', background: '#191F28' }}>
+                            {isVideoMain ? (
+                              <video
+                                src={main.url}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-full h-full"
+                                style={{ objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                              />
+                            ) : (
+                              <img src={post.thumbnail_url || main?.thumbnail || main?.url} alt="" className="w-full h-full" style={{ objectFit: 'cover', display: 'block' }} />
+                            )}
+                            {isVideoMain && (
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }}>
+                                  <Icon name="play_arrow" className="text-[32px] ml-0.5" style={{ color: '#fff' }} filled />
+                                </div>
+                              </div>
+                            )}
+                            {videoCount > 1 && (
+                              <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                                <Icon name="video_library" className="text-[12px]" style={{ color: '#fff' }} />
+                                <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>{videoCount}</span>
                               </div>
                             )}
                             {extraCount > 0 && (

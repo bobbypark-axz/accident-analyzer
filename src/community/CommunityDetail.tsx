@@ -152,22 +152,26 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                         {rest.map((item, i) => (
                           item.type === 'video' ? (
-                            <div key={i} className="relative h-28 w-[156px] rounded-xl overflow-hidden flex-shrink-0 bg-black">
+                            <button
+                              key={i}
+                              onClick={() => window.open(item.url, '_blank')}
+                              className="relative h-28 w-[156px] rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-all"
+                              style={{ background: '#191F28', border: 'none', cursor: 'pointer', padding: 0 }}
+                            >
                               <video
                                 src={item.url}
-                                poster={item.thumbnail || undefined}
-                                controls
-                                playsInline
                                 muted
+                                playsInline
                                 preload="metadata"
                                 className="w-full h-full"
-                                style={{ objectFit: 'cover', background: '#000' }}
+                                style={{ objectFit: 'cover', pointerEvents: 'none' }}
                               />
-                              <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md pointer-events-none" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                                <Icon name="play_arrow" className="text-[12px]" style={{ color: '#fff' }} filled />
-                                <span className="text-[10px] font-semibold" style={{ color: '#fff' }}>영상</span>
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                                  <Icon name="play_arrow" className="text-[22px] ml-0.5" style={{ color: '#fff' }} filled />
+                                </div>
                               </div>
-                            </div>
+                            </button>
                           ) : (
                             <img
                               key={i}
