@@ -19,6 +19,7 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const [showComments, setShowComments] = useState(false);
   const [sharecopied, setShareCopied] = useState(false);
+  const [selectedMediaIdx, setSelectedMediaIdx] = useState(0);
 
   useEffect(() => {
     fetchComments(post.id).then(setComments);
@@ -123,17 +124,18 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
               </div>
             )}
 
-            {/* 미디어 캐러셀 — 영상/사진 혼합 */}
+            {/* 미디어 캐러셀 — 영상/사진 혼합, 썸네일 클릭 시 메인 스왑 */}
             {(() => {
               const items = getMediaItems(post);
               if (items.length === 0) return null;
-              const main = items[0];
-              const rest = items.slice(1);
+              const activeIdx = Math.min(selectedMediaIdx, items.length - 1);
+              const main = items[activeIdx];
               return (
                 <>
                   <div>
                     {main.type === 'video' ? (
                       <video
+                        key={main.url}
                         src={main.url}
                         poster={main.thumbnail || undefined}
                         controls
@@ -147,41 +149,41 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                       <img src={main.url} alt="사고 사진" className="w-full" />
                     )}
                   </div>
-                  {rest.length > 0 && (
+                  {items.length > 1 && (
                     <div className="px-4 pt-3">
                       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                        {rest.map((item, i) => (
-                          item.type === 'video' ? (
+                        {items.map((item, i) => {
+                          if (i === activeIdx) return null;
+                          const isVideo = item.type === 'video';
+                          return (
                             <button
                               key={i}
-                              onClick={() => window.open(item.url, '_blank')}
+                              onClick={() => { setSelectedMediaIdx(i); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                               className="relative h-28 w-[156px] rounded-xl overflow-hidden flex-shrink-0 active:scale-95 transition-all"
-                              style={{ background: '#191F28', border: 'none', cursor: 'pointer', padding: 0 }}
+                              style={{ background: isVideo ? '#191F28' : '#F2F4F6', border: 'none', cursor: 'pointer', padding: 0 }}
                             >
-                              <video
-                                src={item.url}
-                                muted
-                                playsInline
-                                preload="metadata"
-                                className="w-full h-full"
-                                style={{ objectFit: 'cover', pointerEvents: 'none' }}
-                              />
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
-                                  <Icon name="play_arrow" className="text-[22px] ml-0.5" style={{ color: '#fff' }} filled />
+                              {isVideo ? (
+                                <video
+                                  src={item.url}
+                                  muted
+                                  playsInline
+                                  preload="metadata"
+                                  className="w-full h-full"
+                                  style={{ objectFit: 'cover', pointerEvents: 'none' }}
+                                />
+                              ) : (
+                                <img src={item.url} alt={`사고 사진 ${i + 1}`} className="w-full h-full" style={{ objectFit: 'cover', display: 'block' }} />
+                              )}
+                              {isVideo && (
+                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                  <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                                    <Icon name="play_arrow" className="text-[22px] ml-0.5" style={{ color: '#fff' }} filled />
+                                  </div>
                                 </div>
-                              </div>
+                              )}
                             </button>
-                          ) : (
-                            <img
-                              key={i}
-                              src={item.url}
-                              alt={`사고 사진 ${i + 1}`}
-                              className="h-28 rounded-xl object-cover flex-shrink-0 cursor-pointer active:scale-95 transition-all"
-                              onClick={() => window.open(item.url, '_blank')}
-                            />
-                          )
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
