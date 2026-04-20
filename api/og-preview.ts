@@ -54,7 +54,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ratioStr = `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b}`;
   const rawDesc = post.description || post.summary || ratioStr;
   const description = `[${ratioStr}] ${rawDesc}`.slice(0, 200);
-  const image = post.thumbnail_url || `${origin}/og-image.png?v=2`;
+  const image = post.thumbnail_url || `${origin}/og-image.png?v=3`;
 
   const html = `<!doctype html>
 <html lang="ko">
