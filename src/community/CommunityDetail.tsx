@@ -132,7 +132,7 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
               const main = items[activeIdx];
               return (
                 <>
-                  <div>
+                  <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16 / 9', background: '#000' }}>
                     {main.type === 'video' ? (
                       <video
                         key={main.url}
@@ -142,11 +142,11 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                         playsInline
                         muted
                         preload="metadata"
-                        className="w-full"
-                        style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+                        className="absolute inset-0 w-full h-full"
+                        style={{ objectFit: 'contain' }}
                       />
                     ) : (
-                      <img src={main.url} alt="사고 사진" className="w-full" />
+                      <img src={main.url} alt="사고 사진" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain' }} />
                     )}
                   </div>
                   {items.length > 1 && (
