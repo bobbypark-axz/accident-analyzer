@@ -246,7 +246,7 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                         className="flex items-center gap-1.5 active:scale-90 transition-all"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        <Icon name="link" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                        <Icon name="share" className="text-[18px]" style={{ color: '#ADB5BD' }} />
                       </button>
                     </div>
                   </div>

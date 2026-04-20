@@ -170,7 +170,7 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                 <button onClick={handleShare}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
                   style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <Icon name="link" className="text-[16px]" style={{ color: '#ADB5BD' }} />
+                  <Icon name="share" className="text-[16px]" style={{ color: '#ADB5BD' }} />
                 </button>
               </div>
             </div>
