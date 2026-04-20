@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment, incrementViewCount, toggleLike, getLikeStatus, getMediaItems } from '../lib/community';
 import { trackEvent } from '../lib/analytics';
 
@@ -20,6 +20,8 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
   const [showComments, setShowComments] = useState(false);
   const [sharecopied, setShareCopied] = useState(false);
   const [selectedMediaIdx, setSelectedMediaIdx] = useState(0);
+  const [mainPlaying, setMainPlaying] = useState(false);
+  const mainVideoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     fetchComments(post.id).then(setComments);
@@ -132,19 +134,35 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
               const main = items[activeIdx];
               return (
                 <>
-                  <div className="relative w-full overflow-hidden" style={{ aspectRatio: '16 / 9', background: '#000' }}>
+                  <div className="relative w-full overflow-hidden main-player" style={{ aspectRatio: '16 / 9', background: '#000' }}>
                     {main.type === 'video' ? (
-                      <video
-                        key={main.url}
-                        src={main.url}
-                        poster={main.thumbnail || undefined}
-                        controls
-                        playsInline
-                        muted
-                        preload="metadata"
-                        className="absolute inset-0 w-full h-full"
-                        style={{ objectFit: 'cover' }}
-                      />
+                      <>
+                        <video
+                          key={main.url}
+                          ref={mainVideoRef}
+                          src={main.url}
+                          controls
+                          playsInline
+                          muted
+                          preload="metadata"
+                          onPlay={() => setMainPlaying(true)}
+                          onPause={() => setMainPlaying(false)}
+                          className="absolute inset-0 w-full h-full"
+                          style={{ objectFit: 'cover' }}
+                        />
+                        {!mainPlaying && (
+                          <button
+                            onClick={() => mainVideoRef.current?.play()}
+                            className="absolute inset-0 flex items-center justify-center"
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                            aria-label="재생"
+                          >
+                            <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+                              <Icon name="play_arrow" className="text-[36px] ml-0.5" style={{ color: '#fff' }} filled />
+                            </div>
+                          </button>
+                        )}
+                      </>
                     ) : (
                       <img src={main.url} alt="사고 사진" className="absolute inset-0 w-full h-full" style={{ objectFit: 'cover' }} />
                     )}
@@ -405,6 +423,13 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
         @keyframes shareToastIn {
           from { opacity: 0; transform: translateY(4px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        .main-player video::-webkit-media-controls-start-playback-button {
+          display: none !important;
+          -webkit-appearance: none;
+        }
+        .main-player video::-webkit-media-controls-overlay-play-button {
+          display: none !important;
         }
       `}</style>
 
