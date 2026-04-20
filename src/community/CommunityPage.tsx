@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { fetchPosts, fetchPost, timeAgo, toggleLike, getSessionToken, type CommunityPost } from '../lib/community';
+import { fetchPosts, fetchPost, timeAgo, toggleLike, getSessionToken, getMediaItems, type CommunityPost } from '../lib/community';
 import CommunityDetail from './CommunityDetail';
 import { trackEvent } from '../lib/analytics';
 
@@ -171,23 +171,31 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                           overflow: 'hidden',
                         }}>{post.description}</p>
                       )}
-                      {post.thumbnail_url && (
-                        <div className="relative">
-                          <img src={post.thumbnail_url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
-                          {post.media_type === 'video' && (
-                            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                              <Icon name="play_arrow" className="text-[14px]" style={{ color: '#fff' }} filled />
-                              <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>영상</span>
-                            </div>
-                          )}
-                          {post.photo_urls && post.photo_urls.length > 0 && (
-                            <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
-                              <Icon name="photo_library" className="text-[12px]" style={{ color: '#fff' }} />
-                              <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>+{post.photo_urls.length}</span>
-                            </div>
-                          )}
-                        </div>
-                      )}
+                      {(() => {
+                        const items = getMediaItems(post);
+                        if (!post.thumbnail_url && items.length === 0) return null;
+                        const videoCount = items.filter(m => m.type === 'video').length;
+                        const extraCount = items.length - 1;
+                        return (
+                          <div className="relative">
+                            <img src={post.thumbnail_url || items[0]?.thumbnail || items[0]?.url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
+                            {videoCount > 0 && (
+                              <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                                <Icon name="play_arrow" className="text-[14px]" style={{ color: '#fff' }} filled />
+                                <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>
+                                  {videoCount > 1 ? `영상 ${videoCount}` : '영상'}
+                                </span>
+                              </div>
+                            )}
+                            {extraCount > 0 && (
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                                <Icon name="photo_library" className="text-[12px]" style={{ color: '#fff' }} />
+                                <span className="text-[11px] font-semibold" style={{ color: '#fff' }}>+{extraCount}</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* 과실비율 */}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment, incrementViewCount, toggleLike, getLikeStatus } from '../lib/community';
+import { type CommunityPost, type Comment, timeAgo, getSessionToken, deletePost, fetchComments, createComment, deleteComment, incrementViewCount, toggleLike, getLikeStatus, getMediaItems } from '../lib/community';
 import { trackEvent } from '../lib/analytics';
 
 function Icon({ name, className = '', filled = false, style }: { name: string; className?: string; filled?: boolean; style?: React.CSSProperties }) {
@@ -123,39 +123,67 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
               </div>
             )}
 
-            {/* 메인 미디어 */}
-            {post.media_url && (
-              <div>
-                {post.media_type === 'video' ? (
-                  <video
-                    src={post.media_url}
-                    poster={post.thumbnail_url || undefined}
-                    controls
-                    playsInline
-                    muted
-                    preload="metadata"
-                    className="w-full"
-                    style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
-                  />
-                ) : (
-                  <img src={post.media_url} alt="사고 사진" className="w-full" />
-                )}
-              </div>
-            )}
-
-            {/* 추가 사진 갤러리 */}
-            {post.photo_urls && post.photo_urls.length > 0 && (
-              <div className="px-4 pt-3">
-                <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                  {post.photo_urls.map((url, i) => (
-                    <img key={i} src={url} alt={`사고 사진 ${i + 1}`}
-                      className="h-28 rounded-xl object-cover flex-shrink-0 cursor-pointer active:scale-95 transition-all"
-                      onClick={() => window.open(url, '_blank')}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* 미디어 캐러셀 — 영상/사진 혼합 */}
+            {(() => {
+              const items = getMediaItems(post);
+              if (items.length === 0) return null;
+              const main = items[0];
+              const rest = items.slice(1);
+              return (
+                <>
+                  <div>
+                    {main.type === 'video' ? (
+                      <video
+                        src={main.url}
+                        poster={main.thumbnail || undefined}
+                        controls
+                        playsInline
+                        muted
+                        preload="metadata"
+                        className="w-full"
+                        style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+                      />
+                    ) : (
+                      <img src={main.url} alt="사고 사진" className="w-full" />
+                    )}
+                  </div>
+                  {rest.length > 0 && (
+                    <div className="px-4 pt-3">
+                      <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                        {rest.map((item, i) => (
+                          item.type === 'video' ? (
+                            <div key={i} className="relative h-28 w-[156px] rounded-xl overflow-hidden flex-shrink-0 bg-black">
+                              <video
+                                src={item.url}
+                                poster={item.thumbnail || undefined}
+                                controls
+                                playsInline
+                                muted
+                                preload="metadata"
+                                className="w-full h-full"
+                                style={{ objectFit: 'cover', background: '#000' }}
+                              />
+                              <div className="absolute top-1.5 left-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-md pointer-events-none" style={{ background: 'rgba(0,0,0,0.6)' }}>
+                                <Icon name="play_arrow" className="text-[12px]" style={{ color: '#fff' }} filled />
+                                <span className="text-[10px] font-semibold" style={{ color: '#fff' }}>영상</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <img
+                              key={i}
+                              src={item.url}
+                              alt={`사고 사진 ${i + 1}`}
+                              className="h-28 rounded-xl object-cover flex-shrink-0 cursor-pointer active:scale-95 transition-all"
+                              onClick={() => window.open(item.url, '_blank')}
+                            />
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             {/* 반응 바 */}
             <div className="px-4 py-3 flex items-center justify-between" style={{ borderTop: '1px solid #F2F4F6' }}>

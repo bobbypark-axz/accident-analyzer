@@ -26,6 +26,12 @@ export function getSessionToken(): string {
   return token;
 }
 
+export interface MediaItem {
+  url: string;
+  type: 'video' | 'image';
+  thumbnail?: string | null;
+}
+
 export interface CommunityPost {
   id: string;
   nickname: string;
@@ -40,9 +46,23 @@ export interface CommunityPost {
   media_type: string | null;
   thumbnail_url: string | null;
   photo_urls: string[] | null;
+  media_items: MediaItem[] | null;
   session_token: string | null;
   view_count: number;
   created_at: string;
+}
+
+// 구 필드(media_url/photo_urls)와 신 필드(media_items)를 통합해서 단일 배열로 반환
+export function getMediaItems(post: Pick<CommunityPost, 'media_items' | 'media_url' | 'media_type' | 'thumbnail_url' | 'photo_urls'>): MediaItem[] {
+  if (post.media_items && post.media_items.length > 0) return post.media_items;
+  const items: MediaItem[] = [];
+  if (post.media_url) {
+    items.push({ url: post.media_url, type: (post.media_type === 'video' ? 'video' : 'image'), thumbnail: post.thumbnail_url });
+  }
+  if (post.photo_urls) {
+    for (const u of post.photo_urls) items.push({ url: u, type: 'image', thumbnail: null });
+  }
+  return items;
 }
 
 export async function createPost(data: {
@@ -50,6 +70,7 @@ export async function createPost(data: {
   description?: string;
   mediaFile?: File;
   photos?: File[];
+  videos?: File[];
   generateThumbnail?: boolean;
 }): Promise<CommunityPost | null> {
   if (!supabase) return null;
@@ -58,35 +79,45 @@ export async function createPost(data: {
   let media_type: string | null = null;
   let thumbnail_url: string | null = null;
   const photo_urls: string[] = [];
+  const media_items: MediaItem[] = [];
 
-  // 메인 미디어 업로드
-  if (data.mediaFile) {
-    const ext = data.mediaFile.name.split('.').pop();
+  const uploadToBucket = async (file: File): Promise<string | null> => {
+    const ext = file.name.split('.').pop();
     const filename = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabase.storage
+    const { error } = await supabase!.storage
       .from('community-media')
-      .upload(filename, data.mediaFile, { contentType: data.mediaFile.type });
+      .upload(filename, file, { contentType: file.type });
+    if (error) return null;
+    return supabase!.storage.from('community-media').getPublicUrl(filename).data.publicUrl;
+  };
 
-    if (!error) {
-      const { data: urlData } = supabase.storage.from('community-media').getPublicUrl(filename);
-      media_url = urlData.publicUrl;
+  // 메인 미디어 업로드 (구 필드 호환)
+  if (data.mediaFile) {
+    const url = await uploadToBucket(data.mediaFile);
+    if (url) {
+      media_url = url;
       media_type = data.mediaFile.type.startsWith('video/') ? 'video' : 'image';
-      if (media_type === 'image') thumbnail_url = media_url;
+      if (media_type === 'image') thumbnail_url = url;
+      media_items.push({ url, type: media_type as 'video' | 'image', thumbnail: media_type === 'image' ? url : null });
     }
   }
 
-  // 추가 사진 업로드
+  // 추가 영상 업로드 (신 필드 전용)
+  if (data.videos && data.videos.length > 0) {
+    for (const video of data.videos) {
+      const url = await uploadToBucket(video);
+      if (url) media_items.push({ url, type: 'video', thumbnail: null });
+    }
+  }
+
+  // 추가 사진 업로드 (구 필드 + 신 필드 동시)
   if (data.photos && data.photos.length > 0) {
     for (const photo of data.photos) {
-      const ext = photo.name.split('.').pop();
-      const filename = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage
-        .from('community-media')
-        .upload(filename, photo, { contentType: photo.type });
-      if (!error) {
-        const { data: urlData } = supabase.storage.from('community-media').getPublicUrl(filename);
-        photo_urls.push(urlData.publicUrl);
-        if (!thumbnail_url) thumbnail_url = urlData.publicUrl;
+      const url = await uploadToBucket(photo);
+      if (url) {
+        photo_urls.push(url);
+        if (!thumbnail_url) thumbnail_url = url;
+        media_items.push({ url, type: 'image', thumbnail: url });
       }
     }
   }
@@ -134,6 +165,7 @@ export async function createPost(data: {
       media_type,
       thumbnail_url,
       photo_urls: photo_urls.length > 0 ? photo_urls : null,
+      media_items: media_items.length > 0 ? media_items : null,
       session_token: getSessionToken(),
     })
     .select()

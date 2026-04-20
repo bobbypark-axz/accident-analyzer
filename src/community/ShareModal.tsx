@@ -18,9 +18,11 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
   const [includeMedia, setIncludeMedia] = useState(!!mediaFile);
   const [generateImage, setGenerateImage] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [videos, setVideos] = useState<File[]>([]);
   const [description, setDescription] = useState('');
   const [done, setDone] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   const nickname = getNickname();
 
   const handleAddPhotos = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,25 +32,43 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
     if (photoInputRef.current) photoInputRef.current.value = '';
   };
 
+  const handleAddVideos = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const videoFiles = files.filter(f => f.type.startsWith('video/'));
+    setVideos(prev => [...prev, ...videoFiles].slice(0, 3));
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  };
+
   const removePhoto = (idx: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const removeVideo = (idx: number) => {
+    setVideos(prev => prev.filter((_, i) => i !== idx));
+  };
+
   const handleShare = async () => {
     setSharing(true);
-    // 분석에 사용된 미디어 또는 새로 첨부한 사진 중 첫 번째를 메인 미디어로
+    // 메인 미디어: 분석에 사용한 파일 > 첫 번째 추가 영상 > 첫 번째 사진 순
     let uploadFile: File | undefined;
+    let extraVideos = videos;
+    let extraPhotos = photos;
     if (includeMedia && mediaFile) {
       uploadFile = mediaFile;
+    } else if (videos.length > 0) {
+      uploadFile = videos[0];
+      extraVideos = videos.slice(1);
     } else if (photos.length > 0) {
       uploadFile = photos[0];
+      extraPhotos = photos.slice(1);
     }
 
     const post = await createPost({
       analysis,
       description: description.trim() || undefined,
       mediaFile: uploadFile,
-      photos: photos.length > 1 ? photos.slice(1) : undefined,
+      videos: extraVideos.length > 0 ? extraVideos : undefined,
+      photos: extraPhotos.length > 0 ? extraPhotos : undefined,
       generateThumbnail: generateImage && !uploadFile,
     });
     setSharing(false);
@@ -156,6 +176,44 @@ export default function ShareModal({ analysis, mediaFile, onClose, onSuccess }: 
                     style={{ background: '#F2F4F6', border: '1.5px dashed #D1D5DB', cursor: 'pointer' }}>
                     <Icon name="add_photo_alternate" className="text-[22px]" style={{ color: '#ADB5BD' }} />
                     <span className="text-[10px]" style={{ color: '#ADB5BD' }}>{photos.length}/5</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* 영상 추가 첨부 */}
+            <div className="mb-3">
+              <label className="text-[13px] font-semibold mb-2 block" style={{ color: '#333D4B' }}>
+                영상 추가 <span style={{ color: '#ADB5BD', fontWeight: 400 }}>(선택, 최대 3개)</span>
+              </label>
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                multiple
+                onChange={handleAddVideos}
+                className="hidden"
+              />
+              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                {videos.map((video, i) => (
+                  <div key={i} className="relative w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ background: '#191F28' }}>
+                    <Icon name="play_circle" className="text-[28px]" style={{ color: 'rgba(255,255,255,0.85)' }} filled />
+                    <button
+                      onClick={() => removeVideo(i)}
+                      className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer' }}>
+                      <Icon name="close" className="text-[12px]" style={{ color: '#fff' }} />
+                    </button>
+                    <span className="absolute bottom-1 left-1 right-1 text-[9px] font-semibold truncate px-1" style={{ color: '#fff' }}>{video.name}</span>
+                  </div>
+                ))}
+                {videos.length < 3 && (
+                  <button
+                    onClick={() => videoInputRef.current?.click()}
+                    className="w-20 h-20 flex-shrink-0 rounded-xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all"
+                    style={{ background: '#F2F4F6', border: '1.5px dashed #D1D5DB', cursor: 'pointer' }}>
+                    <Icon name="video_call" className="text-[22px]" style={{ color: '#ADB5BD' }} />
+                    <span className="text-[10px]" style={{ color: '#ADB5BD' }}>{videos.length}/3</span>
                   </button>
                 )}
               </div>
