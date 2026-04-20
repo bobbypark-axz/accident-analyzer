@@ -67,14 +67,6 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
 
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/share/${post.id}`;
-    const shareText = `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b} — ${post.description || '사고 분석 결과'}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: post.title || '사고 분석 결과', text: shareText, url: shareUrl });
-        trackEvent('community_share_native', { post_id: post.id });
-        return;
-      } catch {}
-    }
     try {
       await navigator.clipboard.writeText(shareUrl);
     } catch {
@@ -178,8 +170,7 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                 <button onClick={handleShare}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
                   style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <Icon name={sharecopied ? 'check' : 'share'} className="text-[16px]" style={{ color: sharecopied ? '#22C55E' : '#ADB5BD' }} />
-                  {sharecopied && <span className="text-[11px] font-semibold" style={{ color: '#22C55E' }}>복사됨</span>}
+                  <Icon name="link" className="text-[16px]" style={{ color: '#ADB5BD' }} />
                 </button>
               </div>
             </div>
@@ -337,6 +328,27 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
           </div>
         </div>
       </div>
+
+      {sharecopied && (
+        <div
+          className="fixed left-1/2 z-[60] flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg pointer-events-none"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+            transform: 'translateX(-50%)',
+            background: 'rgba(25, 31, 40, 0.95)',
+            animation: 'shareToastIn 200ms ease-out',
+          }}
+        >
+          <Icon name="check_circle" className="text-[18px]" style={{ color: '#22C55E' }} filled />
+          <span className="text-[13px] font-semibold" style={{ color: '#fff' }}>링크가 복사되었어요</span>
+        </div>
+      )}
+      <style>{`
+        @keyframes shareToastIn {
+          from { opacity: 0; transform: translate(-50%, 8px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
 
       {/* 댓글 바텀시트 */}
       {showComments && (

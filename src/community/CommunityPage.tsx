@@ -7,48 +7,6 @@ function Icon({ name, className = '', filled = false, style }: { name: string; c
   return <span className={`material-symbols-rounded ${filled ? 'icon-filled' : ''} ${className}`} aria-hidden="true" style={style}>{name}</span>;
 }
 
-// 썸네일 없는 게시물용 placeholder — chartCode 카테고리별 그라데이션 + 아이콘
-function ChartPlaceholder({ chartCode }: { chartCode: string | null }) {
-  const meta = getPlaceholderMeta(chartCode);
-  return (
-    <div
-      className="relative w-full flex items-center justify-center"
-      style={{
-        height: 140,
-        borderRadius: 12,
-        border: '1px solid #E5E8EB',
-        background: meta.bg,
-      }}
-    >
-      <Icon name={meta.icon} className="text-[48px]" style={{ color: 'rgba(255,255,255,0.85)' }} filled />
-      <span className="absolute bottom-2 right-2 text-[10px] font-bold px-2 py-1 rounded-md"
-        style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', backdropFilter: 'blur(4px)' }}>
-        {meta.label}
-      </span>
-    </div>
-  );
-}
-
-function getPlaceholderMeta(chartCode: string | null): { icon: string; label: string; bg: string } {
-  if (!chartCode) return { icon: 'car_crash', label: '사고 분석', bg: 'linear-gradient(135deg, #6B7684 0%, #8B95A1 100%)' };
-  // 보행자
-  if (chartCode === '차5-1' || /^차5[12]-/.test(chartCode)) return { icon: 'directions_walk', label: '보행자 사고', bg: 'linear-gradient(135deg, #10B981 0%, #34D399 100%)' };
-  // 추돌
-  if (chartCode === '차41-1' || chartCode === '차42-1') return { icon: 'rear_collision', label: '추돌 사고', bg: 'linear-gradient(135deg, #F04452 0%, #FB7185 100%)' };
-  // 차선변경/끼어들기
-  if (/^차(42|43)-/.test(chartCode)) return { icon: 'swap_horiz', label: '차로변경 사고', bg: 'linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)' };
-  // 유턴
-  if (/^차16-/.test(chartCode)) return { icon: 'u_turn_left', label: '유턴 사고', bg: 'linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%)' };
-  // 주차장/도로 외
-  if (/^차(31|44)-/.test(chartCode)) return { icon: 'local_parking', label: '주차장 사고', bg: 'linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%)' };
-  // T자
-  if (/^차(20|21)-/.test(chartCode)) return { icon: 'fork_right', label: 'T자 교차로', bg: 'linear-gradient(135deg, #14B8A6 0%, #2DD4BF 100%)' };
-  // 비신호 교차로
-  if (/^차(1[0-7])-/.test(chartCode)) return { icon: 'traffic', label: '비신호 교차로', bg: 'linear-gradient(135deg, #6366F1 0%, #818CF8 100%)' };
-  // 신호 교차로
-  if (/^차[1-9]-/.test(chartCode)) return { icon: 'traffic', label: '신호 교차로', bg: 'linear-gradient(135deg, #1E3A5F 0%, #2563EB 100%)' };
-  return { icon: 'car_crash', label: '사고 분석', bg: 'linear-gradient(135deg, #6B7684 0%, #8B95A1 100%)' };
-}
 
 export default function CommunityPage({ onHideTabBar }: { initialPostId?: string | null; onHideTabBar?: (hide: boolean) => void }) {
   // URL에서 직접 ?post= 파라미터 읽기 (공유 텍스트가 붙을 수 있으므로 UUID만 추출)
@@ -60,11 +18,13 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
   });
   const [posts, setPosts] = useState<(CommunityPost & { like_count: number; comment_count: number })[]>([]);
   const [likedPosts, setLikedPosts] = useState<Set<string>>(new Set());
+  const [likesSynced, setLikesSynced] = useState(false);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [deepLinkLoading, setDeepLinkLoading] = useState(!!deepLinkPostId);
+  const [shareToast, setShareToast] = useState(false);
 
   // 딥링크: ?post=<id> 로 진입 시 해당 게시물 바로 열기
   useEffect(() => {
@@ -86,17 +46,24 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
     loadPosts();
   }, [page]);
 
-  // 내가 좋아요한 게시물 확인
+  // 내가 좋아요한 게시물 확인 — 세션당 최초 1회만 동기화해서 사용자의 로컬 토글 상태가 덮이지 않도록 함
   useEffect(() => {
-    if (posts.length === 0) return;
+    if (posts.length === 0 || likesSynced) return;
     const token = getSessionToken();
     import('../lib/supabase').then(({ supabase }) => {
-      if (!supabase) return;
+      if (!supabase) { setLikesSynced(true); return; }
       supabase.from('likes').select('post_id').eq('session_token', token).then(({ data }) => {
-        if (data) setLikedPosts(new Set(data.map(d => d.post_id)));
+        if (data) {
+          setLikedPosts(prev => {
+            const next = new Set(prev);
+            data.forEach(d => next.add(d.post_id));
+            return next;
+          });
+        }
+        setLikesSynced(true);
       });
     });
-  }, [posts.length]);
+  }, [posts.length, likesSynced]);
 
   const loadPosts = async () => {
     setLoading(true);
@@ -204,7 +171,7 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                           overflow: 'hidden',
                         }}>{post.description}</p>
                       )}
-                      {post.thumbnail_url ? (
+                      {post.thumbnail_url && (
                         <div className="relative">
                           <img src={post.thumbnail_url} alt="" className="w-full object-cover" style={{ maxHeight: 280, display: 'block', borderRadius: 12, border: '1px solid #E5E8EB' }} />
                           {post.media_type === 'video' && (
@@ -220,8 +187,6 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                             </div>
                           )}
                         </div>
-                      ) : (
-                        <ChartPlaceholder chartCode={post.chart_code} />
                       )}
                     </div>
 
@@ -260,20 +225,28 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                         {post.view_count || 0}
                       </span>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
                           const url = `${window.location.origin}/share/${post.id}`;
-                          if (navigator.share) {
-                            navigator.share({ title: post.title || '사고 분석 결과', text: `과실비율 ${post.fault_ratio_a}:${post.fault_ratio_b}`, url }).catch(() => {});
-                          } else {
-                            navigator.clipboard.writeText(url).catch(() => {});
+                          try {
+                            await navigator.clipboard.writeText(url);
+                          } catch {
+                            const ta = document.createElement('textarea');
+                            ta.value = url;
+                            ta.style.cssText = 'position:fixed;opacity:0';
+                            document.body.appendChild(ta);
+                            ta.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(ta);
                           }
+                          setShareToast(true);
+                          setTimeout(() => setShareToast(false), 2000);
                           trackEvent('community_share', { post_id: post.id });
                         }}
                         className="flex items-center gap-1.5 active:scale-90 transition-all"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        <Icon name="share" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                        <Icon name="link" className="text-[18px]" style={{ color: '#ADB5BD' }} />
                       </button>
                     </div>
                   </div>
@@ -295,6 +268,27 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
           )}
         </div>
       </div>
+
+      {shareToast && (
+        <div
+          className="fixed left-1/2 z-[60] flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg pointer-events-none"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
+            transform: 'translateX(-50%)',
+            background: 'rgba(25, 31, 40, 0.95)',
+            animation: 'shareToastIn 200ms ease-out',
+          }}
+        >
+          <Icon name="check_circle" className="text-[18px]" style={{ color: '#22C55E' }} filled />
+          <span className="text-[13px] font-semibold" style={{ color: '#fff' }}>링크가 복사되었어요</span>
+        </div>
+      )}
+      <style>{`
+        @keyframes shareToastIn {
+          from { opacity: 0; transform: translate(-50%, 8px); }
+          to { opacity: 1; transform: translate(-50%, 0); }
+        }
+      `}</style>
     </div>
   );
 }
