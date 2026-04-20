@@ -167,11 +167,40 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                   <Icon name="chat_bubble_outline" className="text-[16px]" style={{ color: '#ADB5BD' }} />
                   <span className="text-[12px]" style={{ color: '#ADB5BD' }}>{comments.length}</span>
                 </button>
-                <button onClick={handleShare}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <Icon name="share" className="text-[16px]" style={{ color: '#ADB5BD' }} />
-                </button>
+                <div className="relative">
+                  <button onClick={handleShare}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg active:scale-95 transition-all"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <Icon name="share" className="text-[16px]" style={{ color: '#ADB5BD' }} />
+                  </button>
+                  {sharecopied && (
+                    <div
+                      className="absolute flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-lg pointer-events-none whitespace-nowrap"
+                      style={{
+                        bottom: 'calc(100% + 8px)',
+                        right: -4,
+                        background: 'rgba(25, 31, 40, 0.95)',
+                        animation: 'shareToastIn 180ms ease-out',
+                      }}
+                    >
+                      <Icon name="check_circle" className="text-[14px]" style={{ color: '#22C55E' }} filled />
+                      <span className="text-[12px] font-semibold" style={{ color: '#fff' }}>링크 복사됨</span>
+                      <span
+                        aria-hidden
+                        style={{
+                          position: 'absolute',
+                          top: '100%',
+                          right: 10,
+                          width: 0,
+                          height: 0,
+                          borderLeft: '5px solid transparent',
+                          borderRight: '5px solid transparent',
+                          borderTop: '5px solid rgba(25, 31, 40, 0.95)',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
@@ -329,24 +358,10 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
         </div>
       </div>
 
-      {sharecopied && (
-        <div
-          className="fixed left-1/2 z-[60] flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg pointer-events-none"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
-            transform: 'translateX(-50%)',
-            background: 'rgba(25, 31, 40, 0.95)',
-            animation: 'shareToastIn 200ms ease-out',
-          }}
-        >
-          <Icon name="check_circle" className="text-[18px]" style={{ color: '#22C55E' }} filled />
-          <span className="text-[13px] font-semibold" style={{ color: '#fff' }}>링크가 복사되었어요</span>
-        </div>
-      )}
       <style>{`
         @keyframes shareToastIn {
-          from { opacity: 0; transform: translate(-50%, 8px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 

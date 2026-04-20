@@ -24,7 +24,7 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState<CommunityPost | null>(null);
   const [deepLinkLoading, setDeepLinkLoading] = useState(!!deepLinkPostId);
-  const [shareToast, setShareToast] = useState(false);
+  const [copiedPostId, setCopiedPostId] = useState<string | null>(null);
 
   // 딥링크: ?post=<id> 로 진입 시 해당 게시물 바로 열기
   useEffect(() => {
@@ -224,30 +224,59 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
                         <Icon name="visibility" className="text-[18px]" style={{ color: '#ADB5BD' }} />
                         {post.view_count || 0}
                       </span>
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          const url = `${window.location.origin}/share/${post.id}`;
-                          try {
-                            await navigator.clipboard.writeText(url);
-                          } catch {
-                            const ta = document.createElement('textarea');
-                            ta.value = url;
-                            ta.style.cssText = 'position:fixed;opacity:0';
-                            document.body.appendChild(ta);
-                            ta.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(ta);
-                          }
-                          setShareToast(true);
-                          setTimeout(() => setShareToast(false), 2000);
-                          trackEvent('community_share', { post_id: post.id });
-                        }}
-                        className="flex items-center gap-1.5 active:scale-90 transition-all"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                      >
-                        <Icon name="share" className="text-[18px]" style={{ color: '#ADB5BD' }} />
-                      </button>
+                      <div className="relative">
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const url = `${window.location.origin}/share/${post.id}`;
+                            try {
+                              await navigator.clipboard.writeText(url);
+                            } catch {
+                              const ta = document.createElement('textarea');
+                              ta.value = url;
+                              ta.style.cssText = 'position:fixed;opacity:0';
+                              document.body.appendChild(ta);
+                              ta.select();
+                              document.execCommand('copy');
+                              document.body.removeChild(ta);
+                            }
+                            setCopiedPostId(post.id);
+                            setTimeout(() => setCopiedPostId(prev => (prev === post.id ? null : prev)), 2000);
+                            trackEvent('community_share', { post_id: post.id });
+                          }}
+                          className="flex items-center gap-1.5 active:scale-90 transition-all"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                          <Icon name="share" className="text-[18px]" style={{ color: '#ADB5BD' }} />
+                        </button>
+                        {copiedPostId === post.id && (
+                          <div
+                            className="absolute flex items-center gap-1.5 px-3 py-2 rounded-xl shadow-lg pointer-events-none whitespace-nowrap"
+                            style={{
+                              bottom: 'calc(100% + 8px)',
+                              right: -4,
+                              background: 'rgba(25, 31, 40, 0.95)',
+                              animation: 'shareToastIn 180ms ease-out',
+                            }}
+                          >
+                            <Icon name="check_circle" className="text-[14px]" style={{ color: '#22C55E' }} filled />
+                            <span className="text-[12px] font-semibold" style={{ color: '#fff' }}>링크 복사됨</span>
+                            <span
+                              aria-hidden
+                              style={{
+                                position: 'absolute',
+                                top: '100%',
+                                right: 10,
+                                width: 0,
+                                height: 0,
+                                borderLeft: '5px solid transparent',
+                                borderRight: '5px solid transparent',
+                                borderTop: '5px solid rgba(25, 31, 40, 0.95)',
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -269,24 +298,10 @@ export default function CommunityPage({ onHideTabBar }: { initialPostId?: string
         </div>
       </div>
 
-      {shareToast && (
-        <div
-          className="fixed left-1/2 z-[60] flex items-center gap-2 px-4 py-3 rounded-2xl shadow-lg pointer-events-none"
-          style={{
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 96px)',
-            transform: 'translateX(-50%)',
-            background: 'rgba(25, 31, 40, 0.95)',
-            animation: 'shareToastIn 200ms ease-out',
-          }}
-        >
-          <Icon name="check_circle" className="text-[18px]" style={{ color: '#22C55E' }} filled />
-          <span className="text-[13px] font-semibold" style={{ color: '#fff' }}>링크가 복사되었어요</span>
-        </div>
-      )}
       <style>{`
         @keyframes shareToastIn {
-          from { opacity: 0; transform: translate(-50%, 8px); }
-          to { opacity: 1; transform: translate(-50%, 0); }
+          from { opacity: 0; transform: translateY(4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
