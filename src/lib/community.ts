@@ -52,17 +52,31 @@ export interface CommunityPost {
   created_at: string;
 }
 
+// 외부 사이트가 생성한 비디오 썸네일·플레이스홀더를 갤러리에서 제외
+// 해당 URL들은 빨간 유튜브식 플레이 버튼이 박혀있거나 투명 1px 이미지임
+const JUNK_URL_PATTERNS = [
+  /\.thumb\.webp/i,
+  /classes\/lazy\/img\/transparent/i,
+];
+function isJunkUrl(url: string): boolean {
+  return JUNK_URL_PATTERNS.some(rx => rx.test(url));
+}
+
 // 구 필드(media_url/photo_urls)와 신 필드(media_items)를 통합해서 단일 배열로 반환
 export function getMediaItems(post: Pick<CommunityPost, 'media_items' | 'media_url' | 'media_type' | 'thumbnail_url' | 'photo_urls'>): MediaItem[] {
-  if (post.media_items && post.media_items.length > 0) return post.media_items;
-  const items: MediaItem[] = [];
-  if (post.media_url) {
-    items.push({ url: post.media_url, type: (post.media_type === 'video' ? 'video' : 'image'), thumbnail: post.thumbnail_url });
+  let items: MediaItem[];
+  if (post.media_items && post.media_items.length > 0) {
+    items = post.media_items;
+  } else {
+    items = [];
+    if (post.media_url) {
+      items.push({ url: post.media_url, type: (post.media_type === 'video' ? 'video' : 'image'), thumbnail: post.thumbnail_url });
+    }
+    if (post.photo_urls) {
+      for (const u of post.photo_urls) items.push({ url: u, type: 'image', thumbnail: null });
+    }
   }
-  if (post.photo_urls) {
-    for (const u of post.photo_urls) items.push({ url: u, type: 'image', thumbnail: null });
-  }
-  return items;
+  return items.filter(it => !isJunkUrl(it.url));
 }
 
 export async function createPost(data: {
