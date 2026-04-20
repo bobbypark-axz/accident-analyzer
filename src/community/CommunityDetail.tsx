@@ -143,10 +143,10 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
                         muted
                         preload="metadata"
                         className="absolute inset-0 w-full h-full"
-                        style={{ objectFit: 'contain' }}
+                        style={{ objectFit: 'cover' }}
                       />
                     ) : (
-                      <img src={main.url} alt="사고 사진" className="absolute inset-0 w-full h-full" style={{ objectFit: 'contain' }} />
+                      <img src={main.url} alt="사고 사진" className="absolute inset-0 w-full h-full" style={{ objectFit: 'cover' }} />
                     )}
                   </div>
                   {items.length > 1 && (
