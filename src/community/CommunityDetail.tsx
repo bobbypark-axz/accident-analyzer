@@ -127,7 +127,16 @@ export default function CommunityDetail({ post, onBack, onHideTabBar }: { post: 
             {post.media_url && (
               <div>
                 {post.media_type === 'video' ? (
-                  <video src={post.media_url} controls playsInline muted className="w-full" />
+                  <video
+                    src={post.media_url}
+                    poster={post.thumbnail_url || undefined}
+                    controls
+                    playsInline
+                    muted
+                    preload="metadata"
+                    className="w-full"
+                    style={{ aspectRatio: '16 / 9', objectFit: 'contain', background: '#000' }}
+                  />
                 ) : (
                   <img src={post.media_url} alt="사고 사진" className="w-full" />
                 )}
