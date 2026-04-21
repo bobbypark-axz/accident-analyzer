@@ -29,7 +29,7 @@ export default function AppShell() {
         <CommunityPage key={refreshKey} onHideTabBar={setHideTabBar} />
       </div>
 
-      {/* 플로팅 캡슐 탭바 */}
+      {/* 플로팅 캡슐 탭바 — 반응형 */}
       <div style={{
         position: 'fixed',
         bottom: 'max(env(safe-area-inset-bottom), 20px)',
@@ -38,12 +38,13 @@ export default function AppShell() {
         zIndex: 50,
         transition: 'transform 0.3s ease',
         pointerEvents: hideTabBar ? 'none' : 'auto',
+        maxWidth: 'calc(100vw - 24px)',
       }}>
         <div style={{
           display: 'flex',
           gap: 4,
           padding: 5,
-          borderRadius: 28,
+          borderRadius: 9999,
           background: 'linear-gradient(135deg, #1E3A5F 0%, #1a2d4a 100%)',
           backdropFilter: 'saturate(180%) blur(20px)',
           WebkitBackdropFilter: 'saturate(180%) blur(20px)',
@@ -55,20 +56,26 @@ export default function AppShell() {
               <button key={tab.key}
                 onClick={() => { trackEvent('tab_switch', { tab: tab.key }); setActiveTab(tab.key); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 7,
-                  padding: '12px 24px',
-                  borderRadius: 22,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 'clamp(5px, 1.8vw, 7px)',
+                  padding: 'clamp(10px, 2.8vw, 12px) clamp(16px, 4.5vw, 24px)',
+                  borderRadius: 9999,
                   border: 'none',
                   cursor: 'pointer',
                   background: isActive ? '#3182F6' : 'transparent',
                   transition: 'all 0.25s ease',
                   WebkitTapHighlightColor: 'transparent',
+                  whiteSpace: 'nowrap',
+                  flex: '0 1 auto',
+                  minWidth: 0,
                 }}>
                 <span className={`material-symbols-rounded ${isActive ? 'icon-filled' : ''}`}
-                  style={{ fontSize: 22, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'color 0.25s' }}>
+                  style={{ fontSize: 'clamp(19px, 5vw, 22px)', color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'color 0.25s', flexShrink: 0 }}>
                   {tab.icon}
                 </span>
-                <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', letterSpacing: -0.3, transition: 'all 0.25s' }}>
+                <span style={{ fontSize: 'clamp(12px, 3.5vw, 14px)', fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : 'rgba(255,255,255,0.5)', letterSpacing: -0.3, transition: 'all 0.25s' }}>
                   {tab.label}
                 </span>
               </button>
