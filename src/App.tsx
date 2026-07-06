@@ -844,6 +844,13 @@ export function App({ bottomOffset = 0, onNavigateToCommunity, onHideTabBar }: {
               </div>
               <input ref={fileInputRef} type="file" accept="video/*,image/*" className="hidden" onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
 
+              <div className="flex items-start gap-1.5 mt-2.5">
+                <Icon name="info" className="text-[14px] flex-shrink-0 mt-0.5" style={{ color: '#3182F6' }} filled />
+                <p className="text-[12px] leading-snug" style={{ color: '#6B7684' }}>
+                  영상과 함께 사고 상황을 글로 설명하면 분석 정확도가 더 높아집니다.
+                </p>
+              </div>
+
               {fileError && (
                 <div className="flex items-center gap-2 px-4 py-3 rounded-xl mt-3" style={{ background: '#FFF0F0' }}>
                   <span className="text-[14px]">⚠️</span>

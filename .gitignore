@@ -11,3 +11,4 @@ __pycache__/
 *.pt
 .vercel
 API_KEYS.md
+.env*.local
