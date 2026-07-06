@@ -11,9 +11,8 @@ RUN pip install --no-cache-dir -r requirements-server.txt gunicorn
 
 COPY app.py .
 
-# Download YOLOv8n model at build time
-# Download YOLOv8n (nano - fastest) at build time
-RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+# Download YOLOv8s (small - better accuracy than nano) at build time
+RUN python -c "from ultralytics import YOLO; YOLO('yolov8s.pt')"
 
 ENV PORT=5000
 

@@ -63,12 +63,12 @@ next_track_id = 0
 def get_model():
     global model
     if model is None:
-        print("YOLOv8n 모델 로딩 중...")
-        local_model = Path(__file__).parent / "yolov8n.pt"
+        print("YOLOv8s 모델 로딩 중...")
+        local_model = Path(__file__).parent / "yolov8s.pt"
         if local_model.exists():
             model = YOLO(str(local_model))
         else:
-            model = YOLO("yolov8n.pt")
+            model = YOLO("yolov8s.pt")
     return model
 
 
@@ -127,8 +127,9 @@ def detect_lanes(frame):
 
     lane_lines = []
     if lines is not None:
-        for line in lines:
-            x1, y1, x2, y2 = line[0]
+        # OpenCV 버전에 따라 (N,1,4) 또는 (N,4)로 반환됨
+        for line in lines.reshape(-1, 4):
+            x1, y1, x2, y2 = line
             # 기울기 필터링 (수평에 가까운 선 제거)
             if x2 - x1 == 0:
                 continue
@@ -214,13 +215,17 @@ def track_vehicles(detections, frame_idx, fps, prev_positions):
 # ═══════════════════════════════════════
 # 4. 전복 감지
 # ═══════════════════════════════════════
-def detect_rollover(detections):
+def detect_rollover(detections, frame_width=None):
     """바운딩 박스의 가로/세로 비율로 전복 추정"""
     rollovers = []
     for d in detections:
-        if d["class"] not in VEHICLE_CLASSES.values():
+        # 오토바이는 원래 세로가 길어 비율 기준으로 판별 불가 → 제외
+        if d["class"] not in ("car", "bus", "truck"):
             continue
         x1, y1, x2, y2 = d["box"]
+        # 화면 좌우 가장자리에 잘린 박스는 세로로 길어 보이는 오탐 → 제외
+        if frame_width is not None and (x1 < 5 or x2 > frame_width - 5):
+            continue
         w = x2 - x1
         h = y2 - y1
         if h == 0:
@@ -239,6 +244,25 @@ def detect_rollover(detections):
 
 
 # ═══════════════════════════════════════
+# 5. 촬영 차량(ego) 충격 감지
+# ═══════════════════════════════════════
+def find_impact_moment(motion_scores):
+    """프레임 간 카메라 병진 이동량(phaseCorrelate) 급증으로 촬영 차량 자신의 충돌 탐지.
+    정상 주행은 전방으로 퍼지는 확산 운동이라 병진이 작고, 충격 순간엔 화면 전체가 튐.
+    블랙박스 사고는 대부분 촬영 차량이 당사자라 박스 겹침(IoU)으로는 잡히지 않음."""
+    if len(motion_scores) < 10:
+        return None
+    vals = [s for _, s in motion_scores]
+    baseline = float(np.median(vals))
+    threshold = max(baseline * 8, 1.2)
+    # 임계값을 처음 넘는 프레임 = 충격 시작 순간
+    for frame, score in motion_scores:
+        if score > threshold:
+            return {"frame": frame, "score": round(score, 2), "baseline": round(baseline, 2)}
+    return None
+
+
+# ═══════════════════════════════════════
 # 기존 유틸리티
 # ═══════════════════════════════════════
 def calculate_iou(box1, box2):
@@ -253,10 +277,11 @@ def calculate_iou(box1, box2):
     return intersection / union if union > 0 else 0
 
 
-def detect_collisions(detections, tracked_vehicles=None):
-    """충돌 감지: IoU 겹침 + 속도 급변 조합"""
+def detect_collisions(detections, tracked_vehicles=None, prev_speeds=None):
+    """충돌 감지: IoU 겹침 + 지면 정렬 + 급감속 조합"""
     vehicles = [d for d in detections if d["class"] in VEHICLE_CLASSES.values()]
     collisions = []
+    prev_speeds = prev_speeds or {}
 
     # 속도 정보 매핑 (tracked_vehicles에서)
     speed_map = {}
@@ -267,11 +292,21 @@ def detect_collisions(detections, tracked_vehicles=None):
 
     for i in range(len(vehicles)):
         for j in range(i + 1, len(vehicles)):
-            iou = calculate_iou(vehicles[i]["box"], vehicles[j]["box"])
-            cx1 = (vehicles[i]["box"][0] + vehicles[i]["box"][2]) / 2
-            cy1 = (vehicles[i]["box"][1] + vehicles[i]["box"][3]) / 2
-            cx2 = (vehicles[j]["box"][0] + vehicles[j]["box"][2]) / 2
-            cy2 = (vehicles[j]["box"][1] + vehicles[j]["box"][3]) / 2
+            b1, b2 = vehicles[i]["box"], vehicles[j]["box"]
+            iou = calculate_iou(b1, b2)
+            if iou <= 0.05:
+                continue
+
+            # 원근 오탐 방지: 실제 충돌하는 차량은 지면 접점(박스 하단)이 비슷해야 함
+            # 멀리 있는 차가 가까운 차와 화면상 겹치기만 한 경우 하단 높이가 크게 다름
+            h1, h2 = b1[3] - b1[1], b2[3] - b2[1]
+            if abs(b1[3] - b2[3]) > min(h1, h2) * 0.5:
+                continue
+
+            cx1 = (b1[0] + b1[2]) / 2
+            cy1 = (b1[1] + b1[3]) / 2
+            cx2 = (b2[0] + b2[2]) / 2
+            cy2 = (b2[1] + b2[3]) / 2
             dist = np.sqrt((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2)
 
             # 강한 겹침 = 확실한 충돌
@@ -281,13 +316,17 @@ def detect_collisions(detections, tracked_vehicles=None):
                     "iou": round(iou, 3), "distance": round(dist, 1),
                 })
             # 약한 겹침 + 급감속 = 충돌
-            elif iou > 0.05 and dist < 60:
+            elif dist < 60:
                 tid1 = vehicles[i].get("track_id", -1)
                 tid2 = vehicles[j].get("track_id", -1)
-                s1 = speed_map.get(tid1, 0)
-                s2 = speed_map.get(tid2, 0)
-                # 둘 중 하나라도 급감속 (이전 속도 대비 낮아졌거나 거의 정지)
-                if s1 < 5 or s2 < 5:
+                # 직전 프레임까지 움직이던 차가 크게 감속했을 때만 충돌로 판정
+                # (정차된 차끼리 겹쳐 보이는 오탐 방지)
+                decelerated = False
+                for tid in (tid1, tid2):
+                    ps = prev_speeds.get(tid, 0)
+                    if ps > 40 and speed_map.get(tid, 0) < ps * 0.4:
+                        decelerated = True
+                if decelerated:
                     collisions.append({
                         "vehicle1": vehicles[i], "vehicle2": vehicles[j],
                         "iou": round(iou, 3), "distance": round(dist, 1),
@@ -401,9 +440,12 @@ def draw_all(frame, detections, collisions, traffic_lights, lane_lines,
 # ═══════════════════════════════════════
 # 통합 분석 함수
 # ═══════════════════════════════════════
-def analyze_frame(frame, confidence=0.4, frame_idx=0, fps=30, prev_positions=None):
+def analyze_frame(frame, confidence=0.4, frame_idx=0, fps=30, prev_positions=None,
+                  prev_frame_idx=None, prev_speeds=None):
     if prev_positions is None:
         prev_positions = {}
+    if prev_speeds is None:
+        prev_speeds = {}
 
     m = get_model()
     # ByteTrack 추적: 차량 ID 자동 부여, 가림 후 재등장 시에도 ID 유지
@@ -438,6 +480,7 @@ def analyze_frame(frame, confidence=0.4, frame_idx=0, fps=30, prev_positions=Non
     # 차량 추적 + 속도 (ByteTrack ID 활용) — 충돌 감지보다 먼저 실행
     tracked_vehicles = []
     new_positions = {}
+    new_speeds = {}
     for d in detections:
         if d["class"] not in VEHICLE_CLASSES.values():
             continue
@@ -445,19 +488,22 @@ def analyze_frame(frame, confidence=0.4, frame_idx=0, fps=30, prev_positions=Non
         cx = (d["box"][0] + d["box"][2]) / 2
         cy = (d["box"][1] + d["box"][3]) / 2
         speed = 0
-        if tid in prev_positions:
+        if tid in prev_positions and prev_frame_idx is not None and frame_idx > prev_frame_idx:
             px, py = prev_positions[tid]
-            speed = np.sqrt((cx - px) ** 2 + (cy - py) ** 2) * fps
+            # 샘플 프레임 간 실제 경과 시간(초)으로 나눠 px/s 산출
+            dt = (frame_idx - prev_frame_idx) / fps
+            speed = np.sqrt((cx - px) ** 2 + (cy - py) ** 2) / dt
         new_positions[tid] = (cx, cy)
+        new_speeds[tid] = speed
         tracked_vehicles.append({
             **d, "track_id": tid, "speed_px": round(speed, 1), "center": (cx, cy),
         })
 
     # 충돌 감지 (속도 급변 포함)
-    collisions = detect_collisions(detections, tracked_vehicles)
+    collisions = detect_collisions(detections, tracked_vehicles, prev_speeds)
 
     # 전복 감지
-    rollovers = detect_rollover(detections)
+    rollovers = detect_rollover(detections, frame.shape[1])
 
     # 차선 이탈 감지
     lane_departures = []
@@ -488,6 +534,7 @@ def analyze_frame(frame, confidence=0.4, frame_idx=0, fps=30, prev_positions=Non
         "collision_count": len(collisions),
         "rollover_count": len(rollovers),
         "new_positions": new_positions,
+        "new_speeds": new_speeds,
     }
 
 
@@ -589,6 +636,10 @@ def run_unified_analysis(frame, yolo_result, user_description=""):
     if yolo_result["traffic_lights"]:
         colors = [tl["color"] for tl in yolo_result["traffic_lights"]]
         yolo_summary += f"\n- 신호등: {', '.join(colors)}"
+
+    if yolo_result.get("impact_time") is not None:
+        yolo_summary += (f"\n- 촬영 차량(블랙박스 차량) 충격 감지: 영상 {yolo_result['impact_time']}초 시점"
+                         f" (카메라 흔들림 기반 — 촬영 차량 자신이 충돌 당사자일 가능성 높음)")
 
     user_part = ""
     if user_description.strip():
@@ -1001,6 +1052,7 @@ def analyze():
             # ── 이미지: 단일 프레임 분석 ──
             yolo_result = analyze_frame(frame, confidence)
             yolo_result.pop("new_positions", None)
+            yolo_result.pop("new_speeds", None)
             ai_scenario = run_unified_analysis(frame, yolo_result, user_description)
 
             thumbnail_b64 = frame_to_base64_jpg(frame)
@@ -1054,14 +1106,27 @@ def analyze():
         raw_frames = {}
         frame_idx = 0
         prev_positions = {}
+        prev_frame_idx = None
+        prev_speeds = {}
+        motion_scores = []  # (frame_idx, 카메라 병진 이동량 px) — ego 충격 감지용
+        prev_small = None
 
         while True:
             ret, vframe = cap.read()
             if not ret:
                 break
+            small = cv2.cvtColor(cv2.resize(vframe, (160, 90)),
+                                 cv2.COLOR_BGR2GRAY).astype(np.float32)
+            if prev_small is not None:
+                (dx, dy), _ = cv2.phaseCorrelate(prev_small, small)
+                motion_scores.append((frame_idx, float(np.hypot(dx, dy))))
+            prev_small = small
             if frame_idx % sample_interval == 0:
-                result = analyze_frame(vframe, confidence, frame_idx, fps, prev_positions)
+                result = analyze_frame(vframe, confidence, frame_idx, fps,
+                                       prev_positions, prev_frame_idx, prev_speeds)
                 prev_positions = result.pop("new_positions", {})
+                prev_speeds = result.pop("new_speeds", {})
+                prev_frame_idx = frame_idx
                 result["frame"] = frame_idx
                 result["time"] = round(frame_idx / fps, 1)
                 frames_data.append(result)
@@ -1074,41 +1139,49 @@ def analyze():
         if not frames_data:
             return jsonify({"error": "영상에서 프레임을 추출할 수 없습니다"}), 400
 
-        # 2) 핵심 프레임 선택: 충돌 시작 + 시간적 일관성
-        # 연속 2프레임 이상 충돌이 감지된 구간의 시작점 = 진짜 사고 순간
-        collision_run_start = None
+        # 2) 핵심 프레임 선택
+        # 최우선: ego 충격(카메라 흔들림) 순간 — 촬영 차량 자신의 충돌
+        impact = find_impact_moment(motion_scores)
         key_idx = 0
 
-        for i, f in enumerate(frames_data):
-            if f["collision_count"] > 0:
-                if collision_run_start is None:
-                    collision_run_start = i
-                # 연속 2프레임 이상 충돌 → 확정
-                if i - collision_run_start >= 1:
-                    key_idx = collision_run_start
-                    break
-            else:
-                collision_run_start = None
-
-        # 연속 충돌 없으면 점수 기반 fallback
-        if collision_run_start is None or key_idx == 0:
-            best_score = -1
+        if impact:
+            key_idx = min(range(len(frames_data)),
+                          key=lambda i: abs(frames_data[i]["frame"] - impact["frame"]))
+        else:
+            # 차선책: 연속 2프레임 이상 충돌(박스 겹침)이 감지된 구간의 시작점
+            collision_run_start = None
             for i, f in enumerate(frames_data):
-                score = 0
-                prev = frames_data[i - 1] if i > 0 else None
                 if f["collision_count"] > 0:
-                    score += 50 if (prev is None or prev["collision_count"] == 0) else f["collision_count"] * 5
-                if f["rollover_count"] > 0:
-                    score += 30
-                if prev:
-                    score += abs(f["vehicle_count"] - prev["vehicle_count"]) * 8
-                score += f["vehicle_count"]
-                if score > best_score:
-                    best_score = score
-                    key_idx = i
+                    if collision_run_start is None:
+                        collision_run_start = i
+                    # 연속 2프레임 이상 충돌 → 확정
+                    if i - collision_run_start >= 1:
+                        key_idx = collision_run_start
+                        break
+                else:
+                    collision_run_start = None
+
+            # 연속 충돌 없으면 점수 기반 fallback
+            if collision_run_start is None or key_idx == 0:
+                best_score = -1
+                for i, f in enumerate(frames_data):
+                    score = 0
+                    prev = frames_data[i - 1] if i > 0 else None
+                    if f["collision_count"] > 0:
+                        score += 50 if (prev is None or prev["collision_count"] == 0) else f["collision_count"] * 5
+                    if f["rollover_count"] > 0:
+                        score += 30
+                    if prev:
+                        score += abs(f["vehicle_count"] - prev["vehicle_count"]) * 8
+                    score += f["vehicle_count"]
+                    if score > best_score:
+                        best_score = score
+                        key_idx = i
 
         best_frame = raw_frames[key_idx]
         best_result = frames_data[key_idx]
+        if impact:
+            best_result["impact_time"] = round(impact["frame"] / fps, 1)
 
         # 원본 프레임 (어노테이션 없는 깔끔한 썸네일)
         thumbnail_b64 = frame_to_base64_jpg(best_frame)
@@ -1141,6 +1214,7 @@ def analyze():
             "lane_count": best_result.get("lane_count", 0),
             "duration": round(total_frames / fps, 1),
             "analyzed_frames": len(frames_data),
+            "impact_time": best_result.get("impact_time"),
             "key_frame_time": best_result["time"],
             "key_frame_index": min(key_idx, 19),
             "scenario": ai_scenario,
